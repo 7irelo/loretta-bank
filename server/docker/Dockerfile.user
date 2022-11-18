@@ -1,0 +1,15 @@
+
+# Use OpenJDK 22 as the base image
+FROM openjdk:22-jdk-alpine
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the built jar file
+COPY target/user-service.jar /app/user-service.jar
+
+# Expose the port the app runs on
+EXPOSE 8080
+
+# Command to run the jar file
+ENTRYPOINT ["java", "-jar", "user-service.jar"]
