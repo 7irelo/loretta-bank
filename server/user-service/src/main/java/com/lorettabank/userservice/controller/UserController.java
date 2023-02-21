@@ -18,7 +18,17 @@ public class UserController {
 
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@RequestBody UserRequest userRequest) {
-        UserDTO userDTO = UserDTO.fromRequest(userRequest);
+        UserDTO userDTO = new UserDTO();
+        userDTO.setFirstName(userRequest.getFirstName());
+        userDTO.setLastName(userRequest.getLastName());
+        userDTO.setEmail(userRequest.getEmail());
+        userDTO.setDateOfBirth(userRequest.getDateOfBirth());
+        userDTO.setAddress(userRequest.getAddress());
+        userDTO.setOccupation(userRequest.getOccupation());
+        userDTO.setPhone(userRequest.getPhone());
+        userDTO.setUsername(userRequest.getUsername());
+        userDTO.setPassword(userRequest.getPassword());
+
         UserDTO registeredUser = userService.registerUser(userDTO);
         return ResponseEntity.status(201).body(registeredUser);
     }
@@ -27,7 +37,7 @@ public class UserController {
     public ResponseEntity<?> loginUser(@RequestBody UserRequest userRequest) {
         Optional<UserDTO> userDTO = userService.loginUser(userRequest.getUsername(), userRequest.getPassword());
         if (userDTO.isPresent()) {
-            String token = "some-generated-token";
+            String token = "some-generated-token"; // Replace with actual token generation logic
             return ResponseEntity.ok().header("auth-token", token).body(userDTO.get());
         } else {
             return ResponseEntity.status(401).body("Invalid username or password");
@@ -46,17 +56,37 @@ public class UserController {
 
     @PutMapping("/{id}")
     public ResponseEntity<?> updateUser(@PathVariable String id, @RequestBody UserRequest userRequest) {
-        UserDTO userDTO = UserDTO.fromRequest(userRequest);
+        UserDTO userDTO = new UserDTO();
         userDTO.setId(id);
+        userDTO.setFirstName(userRequest.getFirstName());
+        userDTO.setLastName(userRequest.getLastName());
+        userDTO.setEmail(userRequest.getEmail());
+        userDTO.setDateOfBirth(userRequest.getDateOfBirth());
+        userDTO.setAddress(userRequest.getAddress());
+        userDTO.setOccupation(userRequest.getOccupation());
+        userDTO.setPhone(userRequest.getPhone());
+        userDTO.setUsername(userRequest.getUsername());
+        userDTO.setPassword(userRequest.getPassword());
+
         UserDTO updatedUser = userService.updateUser(userDTO);
         return ResponseEntity.ok(updatedUser);
     }
 
     @PatchMapping("/{id}")
     public ResponseEntity<?> patchUser(@PathVariable String id, @RequestBody UserRequest userRequest) {
-        UserDTO userDTO = UserDTO.fromRequest(userRequest);
-        userDTO.setId(id);
-        UserDTO updatedUser = userService.updateUser(userDTO);
+        // Here, we assume partial updates, so only set non-null values from userRequest
+        UserDTO existingUser = userService.getCurrentUser(id).orElseThrow(() -> new RuntimeException("User not found"));
+        if (userRequest.getFirstName() != null) existingUser.setFirstName(userRequest.getFirstName());
+        if (userRequest.getLastName() != null) existingUser.setLastName(userRequest.getLastName());
+        if (userRequest.getEmail() != null) existingUser.setEmail(userRequest.getEmail());
+        if (userRequest.getDateOfBirth() != null) existingUser.setDateOfBirth(userRequest.getDateOfBirth());
+        if (userRequest.getAddress() != null) existingUser.setAddress(userRequest.getAddress());
+        if (userRequest.getOccupation() != null) existingUser.setOccupation(userRequest.getOccupation());
+        if (userRequest.getPhone() != null) existingUser.setPhone(userRequest.getPhone());
+        if (userRequest.getUsername() != null) existingUser.setUsername(userRequest.getUsername());
+        if (userRequest.getPassword() != null) existingUser.setPassword(userRequest.getPassword());
+
+        UserDTO updatedUser = userService.updateUser(existingUser);
         return ResponseEntity.ok(updatedUser);
     }
 }
