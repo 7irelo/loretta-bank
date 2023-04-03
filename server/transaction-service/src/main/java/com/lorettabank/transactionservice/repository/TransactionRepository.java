@@ -1,6 +1,7 @@
-package com.lorettabank.userservice.repository;
+package com.lorettabank.transactionservice.repository;
 
-import com.lorettabank.userservice.dto.TransactionDTO;
+import com.lorettabank.transactionservice.dto.TransactionDTO;
+import com.lorettabank.transactionservice.mapper.TransactionRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -15,7 +16,7 @@ public class TransactionRepository {
     }
 
     public TransactionDTO createTransaction(int accountId, String type, double amount, String description, String journalType) {
-        String query = "INSERT INTO transactions (account_id, type, amount, description, journal_type) VALUES (?, ?, ?, ?, ?) RETURNING *";
+        String query = "INSERT INTO transactions (account_id, transaction_type, amount, description, journal_type) VALUES (?, ?, ?, ?, ?) RETURNING *";
         return jdbcTemplate.queryForObject(query, new Object[]{accountId, type, amount, description, journalType}, new TransactionRowMapper());
     }
 

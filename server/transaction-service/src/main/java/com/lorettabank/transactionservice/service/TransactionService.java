@@ -1,7 +1,7 @@
-package com.lorettabank.userservice.service;
+package com.lorettabank.transactionservice.service;
 
-import com.lorettabank.userservice.dto.TransactionDTO;
-import com.lorettabank.userservice.repository.TransactionRepository;
+import com.lorettabank.transactionservice.dto.TransactionDTO;
+import com.lorettabank.transactionservice.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

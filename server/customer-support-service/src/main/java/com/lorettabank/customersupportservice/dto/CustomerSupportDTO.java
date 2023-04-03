@@ -1,19 +1,36 @@
-package com.lorettabank.userservice.dto;
+package com.lorettabank.customersupportservice.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.data.neo4j.core.schema.*;
+
+import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Node("CustomerSupport")
 public class CustomerSupportDTO {
-    private int id;
-    private int userId;
+    @Id
+    @GeneratedValue
+    private Long id;
+
+    @Property("query")
     private String query;
+
+    @Property("response")
     private String response;
+
+    @Property("status")
     private String status;
-    private String createdAt;
-    private String updatedAt;
+
+    @Property("created_at")
+    private LocalDateTime createdAt;
+
+    @Property("updated_at")
+    private LocalDateTime updatedAt;
+
+    @Relationship(type = "RAISED_BY", direction = Relationship.Direction.OUTGOING)
     private UserDTO user;
 }

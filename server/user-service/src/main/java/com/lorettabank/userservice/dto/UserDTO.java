@@ -2,8 +2,6 @@ package com.lorettabank.userservice.dto;
 
 import lombok.Data;
 
-import java.util.List;
-
 @Data
 public class UserDTO {
     private String id;
@@ -16,9 +14,4 @@ public class UserDTO {
     private String phone;
     private String username;
     private String password;
-
-    private List<AccountDTO> accounts;
-    private List<TransactionDTO> transactions;
-    private List<LoanDTO> loans;
-    private List<CardDTO> cards;
 }
