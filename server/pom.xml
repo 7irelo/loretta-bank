@@ -7,7 +7,7 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>common</module>
+        <module><common-library></common-library></module>
         <module>user-service</module>
         <module>account-service</module>
         <module>transaction-service</module>
