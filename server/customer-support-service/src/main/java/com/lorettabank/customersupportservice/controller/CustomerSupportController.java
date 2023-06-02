@@ -1,7 +1,7 @@
 package com.lorettabank.customersupportservice.controller;
 
-import com.lorettabank.userservice.dto.CustomerSupportDTO;
-import com.lorettabank.userservice.service.CustomerSupportService;
+import com.lorettabank.customersupportservice.dto.CustomerSupportDTO;
+import com.lorettabank.customersupportservice.service.CustomerSupportService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

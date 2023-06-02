@@ -1,8 +1,8 @@
 # Use the official Maven image to build the project
 FROM maven:3.8.4-openjdk-22 AS build
 WORKDIR /app
-COPY customer-support-service/pom.xml .
-COPY customer-support-service/src ./src
+COPY pom.xml .
+COPY src ./src
 RUN mvn clean package -DskipTests
 
 # Use the official OpenJDK image to run the application
