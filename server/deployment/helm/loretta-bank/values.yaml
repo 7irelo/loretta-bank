@@ -1,0 +1,13 @@
+replicaCount: 1
+image:
+  repository: loretta-bank
+  pullPolicy: IfNotPresent
+service:
+  type: ClusterIP
+  port: 80
+ingress:
+  enabled: true
+  annotations: {}
+  hosts:
+    - host: lorettabank.com
+      paths: ["/"]
