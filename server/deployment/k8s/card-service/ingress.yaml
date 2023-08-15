@@ -1,18 +1,18 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: account-service-ingress
+  name: card-service-ingress
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   rules:
-  - host: account.lorettabank.com
+  - host: card.lorettabank.com
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: account-service
+            name: card-service
             port:
               number: 80

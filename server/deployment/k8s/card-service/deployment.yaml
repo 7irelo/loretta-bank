@@ -1,32 +1,32 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: account-service
+  name: card-service
   labels:
-    app: account-service
+    app: card-service
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: account-service
+      app: card-service
   template:
     metadata:
       labels:
-        app: account-service
+        app: card-service
     spec:
       containers:
-      - name: account-service
-        image: loretta-bank/account-service:latest
+      - name: card-service
+        image: loretta-bank/card-service:latest
         ports:
         - containerPort: 8080
         envFrom:
         - configMapRef:
-            name: account-service-config
+            name: card-service-config
         - secretRef:
-            name: account-service-secrets
+            name: card-service-secrets
         env:
         - name: SPRING_DATASOURCE_URL
-          value: jdbc:postgresql://<postgres-host>:5432/accountdb
+          value: jdbc:postgresql://<postgres-host>:5432/lorettabank
         - name: SPRING_DATASOURCE_USERNAME
           value: postgres
         - name: SPRING_DATASOURCE_PASSWORD
