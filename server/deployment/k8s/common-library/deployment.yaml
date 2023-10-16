@@ -1,29 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: account-service
+  name: common-library
   labels:
-    app: account-service
+    app: common-library
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: account-service
+      app: common-library
   template:
     metadata:
       labels:
-        app: account-service
+        app: common-library
     spec:
       containers:
-      - name: account-service
-        image: loretta-bank/account-service:latest
+      - name: common-library
+        image: loretta-bank/common-library:latest
         ports:
         - containerPort: 8080
         envFrom:
         - configMapRef:
-            name: account-service-config
+            name: common-library-config
         - secretRef:
-            name: account-service-secrets
+            name: common-library-secrets
         env:
         - name: SPRING_DATASOURCE_URL
           value: jdbc:postgresql://<postgres-host>:5432/accountdb
