@@ -21,7 +21,16 @@ spring:
   profiles:
     active: "prod"
 
-database:
+db:
+  host: "postgres"
+  port: 5432
+  name: "lorettabank"
   username: "postgres"
   password: "password"
-  url: "jdbc:postgresql://loretta-bank-db:5432/lorettabank"
+
+neo4j:
+  host: "neo4j"
+  port: 7687
+  database: "lorettabank"
+  username: "neo4j"
+  password: "password"

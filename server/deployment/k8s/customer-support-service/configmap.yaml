@@ -3,6 +3,7 @@ kind: ConfigMap
 metadata:
   name: customer-support-service-config
 data:
-  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lorettabank
-  SPRING_DATASOURCE_USERNAME: postgres
-  SPRING_DATASOURCE_PASSWORD: password
+  SPRING_NEO4J_URI: bolt://neo4j:7687
+  SPRING_NEO4J_USERNAME: neo4j
+  SPRING_NEO4J_PASSWORD: password
+  SPRING_NEO4J_DATABASE: lorettabank

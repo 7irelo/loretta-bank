@@ -1,0 +1,178 @@
+server/
+├── deployment/
+│   ├── k8s/
+│   │   ├── account-service/
+│   │   │   ├── deployment.yaml
+│   │   │   ├── service.yaml
+│   │   │   ├── configmap.yaml
+│   │   │   ├── secrets.yaml
+│   │   │   └── ingress.yaml
+│   │   ├── card-service/
+│   │   │   ├── deployment.yaml
+│   │   │   ├── service.yaml
+│   │   │   ├── configmap.yaml
+│   │   │   ├── secrets.yaml
+│   │   │   └── ingress.yaml
+│   │   ├── common-library/
+│   │   │   ├── deployment.yaml
+│   │   │   ├── service.yaml
+│   │   │   ├── configmap.yaml
+│   │   │   ├── secrets.yaml
+│   │   │   └── ingress.yaml
+│   │   ├── customer-support-service/
+│   │   │   ├── deployment.yaml
+│   │   │   ├── service.yaml
+│   │   │   ├── configmap.yaml
+│   │   │   ├── secrets.yaml
+│   │   │   └── ingress.yaml
+│   │   ├── loan-service/
+│   │   │   ├── deployment.yaml
+│   │   │   ├── service.yaml
+│   │   │   ├── configmap.yaml
+│   │   │   ├── secrets.yaml
+│   │   │   └── ingress.yaml
+│   │   ├── transaction-service/
+│   │   │   ├── deployment.yaml
+│   │   │   ├── service.yaml
+│   │   │   ├── configmap.yaml
+│   │   │   ├── secrets.yaml
+│   │   │   └── ingress.yaml
+│   │   └── user-service/
+│   │       ├── deployment.yaml
+│   │       ├── service.yaml
+│   │       ├── configmap.yaml
+│   │       ├── secrets.yaml
+│   │       └── ingress.yaml
+│   ├── helm/
+│   │   └── loretta-bank/
+│   │       ├── Chart.yaml
+│   │       ├── values.yaml
+│   │       ├── templates/
+│   │       │   ├── deployment.yaml
+│   │       │   ├── service.yaml
+│   │       │   ├── configmap.yaml
+│   │       │   └── ingress.yaml
+│   └── terraform/
+│       ├── main.tf
+│       ├── variables.tf
+│       └── outputs.tf
+├── services/
+│   ├── account-service/
+│   │   ├── src/
+│   │   │   ├── main/
+│   │   │   │   ├── java/
+│   │   │   │   │   └── com/lorettabank/accountservice/
+│   │   │   │   │       ├── controller/
+│   │   │   │   │       ├── service/
+│   │   │   │   │       └── repository/
+│   │   │   │   └── resources/
+│   │   │   │       ├── application.yml
+│   │   │   │       └── logback-spring.xml
+│   │   ├── pom.xml
+│   │   ├── Dockerfile
+│   │   └── README.md
+│   ├── card-service/
+│   │   ├── src/
+│   │   │   ├── main/
+│   │   │   │   ├── java/
+│   │   │   │   │   └── com/lorettabank/cardservice/
+│   │   │   │   │       ├── controller/
+│   │   │   │   │       ├── service/
+│   │   │   │   │       └── repository/
+│   │   │   │   └── resources/
+│   │   │   │       ├── application.yml
+│   │   │   │       └── logback-spring.xml
+│   │   ├── pom.xml
+│   │   ├── Dockerfile
+│   │   └── README.md
+│   ├── common-library/
+│   │   ├── src/
+│   │   │   ├── main/
+│   │   │   │   ├── java/
+│   │   │   │   │   └── com/lorettabank/commonlibrary/
+│   │   │   │   │       ├── config/
+│   │   │   │   │       ├── util/
+│   │   │   │   │       └── model/
+│   │   │   │   └── resources/
+│   │   │   │       ├── application.yml
+│   │   │   │       └── logback-spring.xml
+│   │   ├── pom.xml
+│   │   ├── Dockerfile
+│   │   └── README.md
+│   ├── customer-support-service/
+│   │   ├── src/
+│   │   │   ├── main/
+│   │   │   │   ├── java/
+│   │   │   │   │   └── com/lorettabank/customersupportservice/
+│   │   │   │   │       ├── controller/
+│   │   │   │   │       ├── service/
+│   │   │   │   │       ├── repository/
+│   │   │   │   │       └── model/
+│   │   │   │   └── resources/
+│   │   │   │       ├── application.yml
+│   │   │   │       └── logback-spring.xml
+│   │   ├── pom.xml
+│   │   ├── Dockerfile
+│   │   └── README.md
+│   ├── loan-service/
+│   │   ├── src/
+│   │   │   ├── main/
+│   │   │   │   ├── java/
+│   │   │   │   │   └── com/lorettabank/loanservice/
+│   │   │   │   │       ├── controller/
+│   │   │   │   │       ├── service/
+│   │   │   │   │       └── repository/
+│   │   │   │   └── resources/
+│   │   │   │       ├── application.yml
+│   │   │   │       └── logback-spring.xml
+│   │   ├── pom.xml
+│   │   ├── Dockerfile
+│   │   └── README.md
+│   ├── transaction-service/
+│   │   ├── src/
+│   │   │   ├── main/
+│   │   │   │   ├── java/
+│   │   │   │   │   └── com/lorettabank/transactionservice/
+│   │   │   │   │       ├── controller/
+│   │   │   │   │       ├── service/
+│   │   │   │   │       └── repository/
+│   │   │   │   └── resources/
+│   │   │   │       ├── application.yml
+│   │   │   │       └── logback-spring.xml
+│   │   ├── pom.xml
+│   │   ├── Dockerfile
+│   │   └── README.md
+│   └── user-service/
+│       ├── src/
+│       │   ├── main/
+│       │   │   ├── java/
+│       │   │   │   └── com/lorettabank/userservice/
+│       │   │   │       ├── controller/
+│       │   │   │       ├── service/
+│       │   │   │       └── repository/
+│       │   │   └── resources/
+│       │   │       ├── application.yml
+│       │   │       └── logback-spring.xml
+│       ├── pom.xml
+│       ├── Dockerfile
+│       └── README.md
+├── config/
+│   ├── application.yml
+|   ├── bootstrap.yml
+|   └── logback-spring.xml
+├── scripts/
+│   ├── build.sh
+│   ├── build.sh
+│   ├── deploy.sh
+│   ├── test.sh
+│   └── (other automation scripts)
+├─── docs/
+│    ├── architecture/
+│    │   ├── system-architecture.md
+│    ├── configuration/
+│    │   ├── configuration-guide.md
+│    └── deployment/
+│        └── deployment-setup.md
+├── .gitignore
+├── README.md
+└── Makefile
