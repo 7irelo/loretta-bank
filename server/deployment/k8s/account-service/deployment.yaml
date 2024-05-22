@@ -26,8 +26,14 @@ spec:
             name: account-service-secrets
         env:
         - name: SPRING_DATASOURCE_URL
-          value: jdbc:postgresql://<postgres-host>:5432/accountdb
+          value: jdbc:postgresql://localhost:5432/lorettabank
         - name: SPRING_DATASOURCE_USERNAME
-          value: postgres
+          valueFrom:
+            secretKeyRef:
+              name: account-service-secrets
+              key: datasource-username
         - name: SPRING_DATASOURCE_PASSWORD
-          value: password
+          valueFrom:
+            secretKeyRef:
+              name: account-service-secrets
+              key: datasource-password

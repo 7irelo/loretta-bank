@@ -1,8 +1,9 @@
-package com.lorettabank.userservice.controller;
+package com.lorettabank.accountservice.controller;
 
-import com.lorettabank.userservice.dto.AccountDTO;
+import com.lorettabank.accountservice.dto.AccountDTO;
+import com.lorettabank.commonlibrary.model.Account;
 import com.lorettabank.userservice.serializer.AccountSerializer;
-import com.lorettabank.userservice.service.AccountService;
+import com.lorettabank.accountservice.service.AccountService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
