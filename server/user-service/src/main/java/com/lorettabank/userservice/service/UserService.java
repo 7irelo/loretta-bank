@@ -19,7 +19,8 @@ public class UserService {
 
     public UserDTO registerUser(UserDTO userDTO) {
         userDTO.setPassword(passwordEncoder.encode(userDTO.getPassword()));
-        return userRepository.save(userDTO);
+        userRepository.save(userDTO); // Save or update user
+        return userDTO;
     }
 
     public Optional<UserDTO> loginUser(String username, String password) {
@@ -31,10 +32,13 @@ public class UserService {
     }
 
     public Optional<UserDTO> getCurrentUser(String id) {
-        return userRepository.findById(id);
+        // Fetch user with details including accounts, transactions, etc.
+        return userRepository.findByIdWithDetails(id);
     }
 
     public UserDTO updateUser(UserDTO userDTO) {
-        return userRepository.update(userDTO);
+        // Note: Update logic here is essentially the same as save
+        userRepository.save(userDTO);
+        return userDTO;
     }
 }
