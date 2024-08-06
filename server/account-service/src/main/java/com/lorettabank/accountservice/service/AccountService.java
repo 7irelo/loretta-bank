@@ -1,7 +1,7 @@
-package com.lorettabank.userservice.service;
+package com.lorettabank.accountservice.service;
 
-import com.lorettabank.userservice.dto.AccountDTO;
-import com.lorettabank.userservice.repository.AccountRepository;
+import com.lorettabank.accountservice.dto.AccountDTO;
+import com.lorettabank.accountservice.repository.AccountRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

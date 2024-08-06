@@ -1,13 +1,22 @@
-package com.lorettabank.userservice.repository;
+package com.lorettabank.accountservice.mapper;
 
-import com.lorettabank.userservice.dto.AccountDTO;
-import com.lorettabank.userservice.dto.UserDTO;
+import com.lorettabank.accountservice.dto.AccountDTO;
+import com.lorettabank.accountservice.dto.UserDTO;
+import com.lorettabank.accountservice.dto.TransactionDTO;
+import com.lorettabank.accountservice.repository.TransactionRepository;
 import org.springframework.jdbc.core.RowMapper;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 
 public class AccountRowMapper implements RowMapper<AccountDTO> {
+    private final TransactionRepository transactionRepository;
+
+    public AccountRowMapper(TransactionRepository transactionRepository) {
+        this.transactionRepository = transactionRepository;
+    }
+
     @Override
     public AccountDTO mapRow(ResultSet rs, int rowNum) throws SQLException {
         UserDTO user = new UserDTO();
@@ -21,8 +30,12 @@ public class AccountRowMapper implements RowMapper<AccountDTO> {
         user.setPhone(rs.getString("phone"));
         user.setUsername(rs.getString("username"));
 
+        int accountId = rs.getInt("id");
+
+        List<TransactionDTO> transactions = transactionRepository.findLatest10ByAccountId(accountId);
+
         AccountDTO account = new AccountDTO();
-        account.setId(rs.getInt("id"));
+        account.setId(accountId);
         account.setName(rs.getString("name"));
         account.setUserId(rs.getString("user_id"));
         account.setAccountType(rs.getString("account_type"));
@@ -32,6 +45,7 @@ public class AccountRowMapper implements RowMapper<AccountDTO> {
         account.setImageUrl(rs.getString("image_url"));
         account.setAccountNumber(rs.getString("account_number"));
         account.setUser(user);
+        account.setTransactions(transactions);
 
         return account;
     }

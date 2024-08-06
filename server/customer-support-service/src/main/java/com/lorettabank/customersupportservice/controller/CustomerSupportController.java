@@ -1,9 +1,11 @@
-package com.lorettabank.userservice.controller;
+package com.lorettabank.customersupportservice.controller;
 
 import com.lorettabank.userservice.dto.CustomerSupportDTO;
 import com.lorettabank.userservice.service.CustomerSupportService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/support")
@@ -18,12 +20,7 @@ public class CustomerSupportController {
     @PostMapping
     public ResponseEntity<?> createSupport(@RequestBody CustomerSupportDTO supportDTO) {
         try {
-            CustomerSupportDTO createdSupport = supportService.createSupport(
-                    supportDTO.getUserId(),
-                    supportDTO.getQuery(),
-                    supportDTO.getResponse(),
-                    supportDTO.getStatus()
-            );
+            CustomerSupportDTO createdSupport = supportService.createSupport(supportDTO);
             return ResponseEntity.status(201).body(createdSupport);
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Error creating support query");
@@ -31,23 +28,23 @@ public class CustomerSupportController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getSupport(@PathVariable int id, @RequestParam("userId") int userId) {
+    public ResponseEntity<?> getSupport(@PathVariable Long id) {
         try {
-            CustomerSupportDTO support = supportService.getSupport(id, userId);
-            if (support == null) {
+            Optional<CustomerSupportDTO> support = supportService.getSupport(id);
+            if (support.isEmpty()) {
                 return ResponseEntity.status(404).body("Support query not found");
             }
-            return ResponseEntity.ok(support);
+            return ResponseEntity.ok(support.get());
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Error fetching support query");
         }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateSupport(@PathVariable int id, @RequestBody CustomerSupportDTO supportDTO) {
+    public ResponseEntity<?> updateSupport(@PathVariable Long id, @RequestBody CustomerSupportDTO supportDTO) {
         try {
-            int result = supportService.updateSupport(id, supportDTO.getUserId(), supportDTO.getQuery(), supportDTO.getResponse(), supportDTO.getStatus());
-            if (result == 0) {
+            CustomerSupportDTO updatedSupport = supportService.updateSupport(id, supportDTO);
+            if (updatedSupport == null) {
                 return ResponseEntity.status(404).body("Support query not found");
             }
             return ResponseEntity.ok("Support query updated successfully");
@@ -57,10 +54,10 @@ public class CustomerSupportController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteSupport(@PathVariable int id, @RequestParam("userId") int userId) {
+    public ResponseEntity<?> deleteSupport(@PathVariable Long id) {
         try {
-            int result = supportService.deleteSupport(id, userId);
-            if (result == 0) {
+            boolean deleted = supportService.deleteSupport(id);
+            if (!deleted) {
                 return ResponseEntity.status(404).body("Support query not found");
             }
             return ResponseEntity.ok("Support query deleted successfully");

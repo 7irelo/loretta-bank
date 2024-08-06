@@ -1,7 +1,7 @@
-package com.lorettabank.userservice.repository;
+package com.lorettabank.transactionservice.mapper;
 
-import com.lorettabank.userservice.dto.TransactionDTO;
-import com.lorettabank.userservice.dto.AccountDTO;
+import com.lorettabank.transactionservice.dto.TransactionDTO;
+import com.lorettabank.accountservice.dto.AccountDTO;
 import org.springframework.jdbc.core.RowMapper;
 
 import java.sql.ResultSet;
@@ -24,7 +24,7 @@ public class TransactionRowMapper implements RowMapper<TransactionDTO> {
         TransactionDTO transaction = new TransactionDTO();
         transaction.setId(rs.getInt("id"));
         transaction.setAccountId(rs.getInt("account_id"));
-        transaction.setType(rs.getString("type"));
+        transaction.setTransactionType(rs.getString("transaction_type"));
         transaction.setAmount(rs.getDouble("amount"));
         transaction.setDescription(rs.getString("description"));
         transaction.setJournalType(rs.getString("journal_type"));

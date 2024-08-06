@@ -1,8 +1,10 @@
-package com.lorettabank.userservice.dto;
+package com.lorettabank.accountservice.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -18,4 +20,5 @@ public class AccountDTO {
     private String imageUrl;
     private String accountNumber;
     private UserDTO user;
+    private List<TransactionDTO> transactions;
 }

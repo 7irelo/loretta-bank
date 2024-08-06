@@ -1,25 +1,21 @@
-package com.lorettabank.common;
+package com.lorettabank.cardservice.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+
+import java.util.Date;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class Card {
+public class CardDTO {
     private int id;
     private String userId;
     private int accountId;
     private String cardNumber;
-    private LocalDate expiryDate;
+    private Date expiryDate;
     private String cvv;
     private double creditLimit;
     private double balance;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 }
