@@ -25,6 +25,8 @@ The project is divided into two main parts:
 - Kubernetes cluster
 - Node.js 16+
 - PostgreSQL 14+
+- Neo4j (for customer-support-service)
+- Redis (used across all services)
 
 ## Getting Started
 
@@ -35,13 +37,20 @@ The project is divided into two main parts:
 The backend consists of the following microservices:
 
 - **User Service**: Manages user data and authentication.
+  - **API Endpoint**: `/api/users`
 - **Account Service**: Manages bank accounts.
+  - **API Endpoint**: `/api/account`
 - **Transaction Service**: Handles transactions between accounts.
+  - **API Endpoint**: `/api/transactions`
 - **Loan Service**: Manages loan applications and information.
+  - **API Endpoint**: `/api/loans`
 - **Card Service**: Manages credit and debit cards.
+  - **API Endpoint**: `/api/cards`
 - **Customer Support Service**: Handles customer support tickets and inquiries.
+  - **API Endpoint**: `/api/customer-support`
+  - **Database**: Uses Neo4j for storing customer support-related data.
 
-Each service is a separate Spring Boot application.
+Each service is a separate Spring Boot application and utilizes Redis for caching and session management.
 
 #### Building the Server
 
@@ -115,6 +124,19 @@ The server configuration files are located in `src/main/resources/application.pr
   spring.datasource.password=your_password
   ```
 
+- **Redis Configuration:**
+  ```properties
+  spring.redis.host=redis-service
+  spring.redis.port=6379
+  ```
+
+- **Neo4j Configuration (for customer-support-service):**
+  ```properties
+  spring.data.neo4j.uri=bolt://neo4j-service:7687
+  spring.data.neo4j.username=neo4j
+  spring.data.neo4j.password=your_password
+  ```
+
 ### Client Configuration
 
 The client configuration can be adjusted in the `src/config.js` file to set API endpoints and other global settings.
@@ -152,7 +174,3 @@ Contributions are welcome! Please fork the repository and create a pull request 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-This README should provide a comprehensive overview of the project, helping users set up and run the system effectively. Let me know if there are any specific sections you'd like to adjust or expand further!
