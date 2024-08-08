@@ -1,29 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: account-service
+  name: transaction-service
   labels:
-    app: account-service
+    app: transaction-service
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: account-service
+      app: transaction-service
   template:
     metadata:
       labels:
-        app: account-service
+        app: transaction-service
     spec:
       containers:
-      - name: account-service
-        image: loretta-bank/account-service:latest
+      - name: transaction-service
+        image: loretta-bank/transaction-service:latest
         ports:
         - containerPort: 8080
         envFrom:
         - configMapRef:
-            name: account-service-config
+            name: transaction-service-config
         - secretRef:
-            name: account-service-secrets
+            name: transaction-service-secrets
         env:
         - name: SPRING_DATASOURCE_URL
           value: jdbc:postgresql://<postgres-host>:5432/accountdb

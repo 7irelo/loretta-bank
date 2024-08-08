@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-support-service
+  labels:
+    app: customer-support-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: customer-support-service
+  template:
+    metadata:
+      labels:
+        app: customer-support-service
+    spec:
+      containers:
+      - name: customer-support-service
+        image: loretta-bank/customer-support-service:latest
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: customer-support-service-config
+        - secretRef:
+            name: customer-support-service-secrets
+        env:
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:postgresql://<postgres-host>:5432/accountdb
+        - name: SPRING_DATASOURCE_USERNAME
+          value: postgres
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: password

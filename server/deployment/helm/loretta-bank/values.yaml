@@ -1,13 +1,27 @@
 replicaCount: 1
+
 image:
-  repository: loretta-bank
+  repository: "loretta-bank"
+  tag: "latest"
   pullPolicy: IfNotPresent
+
 service:
+  name: loretta-bank
   type: ClusterIP
-  port: 80
+  port: 8080
+
 ingress:
   enabled: true
   annotations: {}
   hosts:
     - host: lorettabank.com
       paths: ["/"]
+
+spring:
+  profiles:
+    active: "prod"
+
+database:
+  username: "postgres"
+  password: "password"
+  url: "jdbc:postgresql://loretta-bank-db:5432/lorettabank"
