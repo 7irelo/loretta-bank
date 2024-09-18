@@ -1,0 +1,24 @@
+server:
+  port: 8761
+spring:
+  application:
+    name: discovery-service
+  security:
+    user:
+      name: eureka
+      password: eureka
+eureka:
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+  server:
+    enable-self-preservation: false
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info

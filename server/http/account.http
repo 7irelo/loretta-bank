@@ -1,0 +1,61 @@
+### Open a checking account
+POST http://localhost:8080/api/v1/accounts
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "customerId": 1,
+  "accountType": "CHECKING",
+  "currency": "ZAR",
+  "initialDeposit": 1000.00
+}
+
+### Open a savings account
+POST http://localhost:8080/api/v1/accounts
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "customerId": 1,
+  "accountType": "SAVINGS",
+  "currency": "ZAR",
+  "initialDeposit": 5000.00
+}
+
+### Get account by ID
+GET http://localhost:8080/api/v1/accounts/1
+Authorization: Bearer {{accessToken}}
+
+### Get accounts for customer
+GET http://localhost:8080/api/v1/accounts/customer/1
+Authorization: Bearer {{accessToken}}
+
+### Deposit money
+POST http://localhost:8080/api/v1/accounts/1/deposit
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: dep-001
+
+{
+  "amount": 2500.00,
+  "reference": "Salary deposit"
+}
+
+### Withdraw money
+POST http://localhost:8080/api/v1/accounts/1/withdraw
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: wd-001
+
+{
+  "amount": 500.00,
+  "reference": "ATM withdrawal"
+}
+
+### Freeze account (admin only)
+PATCH http://localhost:8080/api/v1/accounts/1/freeze
+Authorization: Bearer {{adminAccessToken}}
+
+### Close account (admin only)
+PATCH http://localhost:8080/api/v1/accounts/1/close
+Authorization: Bearer {{adminAccessToken}}

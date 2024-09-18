@@ -1,0 +1,261 @@
+version: "3.9"
+
+services:
+  # --- Infrastructure ---
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: loretta-postgres
+    environment:
+      POSTGRES_USER: loretta
+      POSTGRES_PASSWORD: loretta_secret
+      POSTGRES_DB: loretta_auth
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loretta"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.1
+    container_name: loretta-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: loretta-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # --- Services ---
+
+  discovery-service:
+    build:
+      context: ./server
+      dockerfile: discovery-service/Dockerfile
+    container_name: loretta-discovery
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://eureka:eureka@localhost:8761/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api-gateway:
+    build:
+      context: ./server
+      dockerfile: api-gateway/Dockerfile
+    container_name: loretta-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+      REDIS_HOST: redis
+      JWT_SECRET: loretta-bank-jwt-secret-key-that-is-at-least-256-bits-long-for-hs256
+    depends_on:
+      discovery-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  auth-service:
+    build:
+      context: ./server
+      dockerfile: auth-service/Dockerfile
+    container_name: loretta-auth
+    ports:
+      - "8081:8081"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/loretta_auth
+      DB_USERNAME: loretta
+      DB_PASSWORD: loretta_secret
+      REDIS_HOST: redis
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+      JWT_SECRET: loretta-bank-jwt-secret-key-that-is-at-least-256-bits-long-for-hs256
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+
+  customer-service:
+    build:
+      context: ./server
+      dockerfile: customer-service/Dockerfile
+    container_name: loretta-customer
+    ports:
+      - "8082:8082"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/loretta_customer
+      DB_USERNAME: loretta
+      DB_PASSWORD: loretta_secret
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+      CUSTOMER_SERVICE_URL: http://customer-service:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+
+  account-service:
+    build:
+      context: ./server
+      dockerfile: account-service/Dockerfile
+    container_name: loretta-account
+    ports:
+      - "8083:8083"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/loretta_account
+      DB_USERNAME: loretta
+      DB_PASSWORD: loretta_secret
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+
+  transaction-service:
+    build:
+      context: ./server
+      dockerfile: transaction-service/Dockerfile
+    container_name: loretta-transaction
+    ports:
+      - "8084:8084"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/loretta_transaction
+      DB_USERNAME: loretta
+      DB_PASSWORD: loretta_secret
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+      ACCOUNT_SERVICE_URL: http://account-service:8083
+      CUSTOMER_SERVICE_URL: http://customer-service:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+      account-service:
+        condition: service_started
+
+  notification-service:
+    build:
+      context: ./server
+      dockerfile: notification-service/Dockerfile
+    container_name: loretta-notification
+    ports:
+      - "8085:8085"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/loretta_notification
+      DB_USERNAME: loretta
+      DB_PASSWORD: loretta_secret
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+
+  audit-service:
+    build:
+      context: ./server
+      dockerfile: audit-service/Dockerfile
+    container_name: loretta-audit
+    ports:
+      - "8086:8086"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/loretta_audit
+      DB_USERNAME: loretta
+      DB_PASSWORD: loretta_secret
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+
+  reporting-service:
+    build:
+      context: ./server
+      dockerfile: reporting-service/Dockerfile
+    container_name: loretta-reporting
+    ports:
+      - "8087:8087"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/loretta_reporting
+      DB_USERNAME: loretta
+      DB_PASSWORD: loretta_secret
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+      ACCOUNT_SERVICE_URL: http://account-service:8083
+      TRANSACTION_SERVICE_URL: http://transaction-service:8084
+      CUSTOMER_SERVICE_URL: http://customer-service:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      discovery-service:
+        condition: service_healthy
+      account-service:
+        condition: service_started
+      transaction-service:
+        condition: service_started
+      customer-service:
+        condition: service_started
+
+volumes:
+  postgres_data:

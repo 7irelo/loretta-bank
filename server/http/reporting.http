@@ -1,0 +1,22 @@
+### Generate account statement
+POST http://localhost:8080/api/v1/reports/statements
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "accountId": 1,
+  "periodFrom": "2025-01-01T00:00:00",
+  "periodTo": "2025-12-31T23:59:59"
+}
+
+### Get statement by ID
+GET http://localhost:8080/api/v1/reports/statements/1
+Authorization: Bearer {{accessToken}}
+
+### Get statements for account
+GET http://localhost:8080/api/v1/reports/statements/account/1
+Authorization: Bearer {{accessToken}}
+
+### Get statements for customer (admin/support)
+GET http://localhost:8080/api/v1/reports/statements/customer/1
+Authorization: Bearer {{adminAccessToken}}

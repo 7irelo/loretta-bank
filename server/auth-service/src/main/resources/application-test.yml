@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/loretta_auth
+    username: loretta
+    password: loretta_secret
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: localhost
+eureka:
+  client:
+    enabled: false
+
+auth:
+  bootstrap:
+    enabled: false

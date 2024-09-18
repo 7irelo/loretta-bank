@@ -1,0 +1,56 @@
+### Register a new user
+POST http://localhost:8080/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "john@lorettabank.co.za",
+  "password": "SecurePass123!",
+  "firstName": "John",
+  "lastName": "Doe"
+}
+
+### Login
+POST http://localhost:8080/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "john@lorettabank.co.za",
+  "password": "SecurePass123!"
+}
+
+### Refresh token
+POST http://localhost:8080/api/v1/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### Register admin user
+POST http://localhost:8080/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "admin@lorettabank.co.za",
+  "password": "AdminPass123!",
+  "firstName": "Admin",
+  "lastName": "User"
+}
+
+### Logout
+POST http://localhost:8080/api/v1/auth/logout
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### Promote user to SUPPORT (admin only)
+PUT http://localhost:8080/api/v1/auth/users/2/role
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "role": "SUPPORT"
+}

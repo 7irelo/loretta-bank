@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/loretta_transaction_test
+    username: loretta
+    password: loretta_secret
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+  kafka:
+    bootstrap-servers: localhost:9092
+
+eureka:
+  client:
+    enabled: false
+
+account-service:
+  url: http://localhost:8083
+
+customer-service:
+  url: http://localhost:8082

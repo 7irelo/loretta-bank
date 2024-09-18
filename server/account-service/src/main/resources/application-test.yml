@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/loretta_account
+    username: loretta
+    password: loretta_secret
+  kafka:
+    bootstrap-servers: localhost:9092
+eureka:
+  client:
+    enabled: false
+
+customer-service:
+  url: http://localhost:8082

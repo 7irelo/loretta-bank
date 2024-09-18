@@ -1,0 +1,50 @@
+server:
+  port: 8081
+spring:
+  application:
+    name: auth-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/loretta_auth}
+    username: ${DB_USERNAME:loretta}
+    password: ${DB_PASSWORD:loretta_secret}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://eureka:eureka@localhost:8761/eureka}
+jwt:
+  secret: ${JWT_SECRET:loretta-bank-jwt-secret-key-that-is-at-least-256-bits-long-for-hs256}
+  access-token-expiration: 900000
+  refresh-token-expiration: 604800000
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+auth:
+  bootstrap:
+    enabled: ${AUTH_BOOTSTRAP_ENABLED:true}
+    admin-email: ${AUTH_BOOTSTRAP_ADMIN_EMAIL:admin@lorettabank.co.za}
+    admin-password: ${AUTH_BOOTSTRAP_ADMIN_PASSWORD:AdminPass123!}
+
+springdoc:
+  api-docs:
+    path: /api/v1/auth/v3/api-docs
+  swagger-ui:
+    path: /api/v1/auth/swagger-ui.html

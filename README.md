@@ -1,176 +1,299 @@
-# Loretta Bank
+# Loretta Bank - Microservices Banking System
 
-![loretta_home](https://github.com/user-attachments/assets/931188dc-e208-4cd9-b490-4ee2da1db25e)
+A production-grade banking backend built with Java 21, Spring Boot 3.4, and microservices architecture.
 
-![loretta_transfer](https://github.com/user-attachments/assets/b1ca33b2-d9bb-4bde-8056-898a13f551d9)
+## Architecture
 
-![loretta_login](https://github.com/user-attachments/assets/419bc0ee-1603-4791-9042-bef949005428)
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
+│   Client     │────▶│  API Gateway │────▶│ Discovery (Eureka)│
+│  (React)     │     │   (8080)     │     │     (8761)       │
+└─────────────┘     └──────┬───────┘     └─────────────────┘
+                           │
+         ┌─────────────────┼─────────────────┐
+         │                 │                 │
+    ┌────▼────┐     ┌─────▼─────┐    ┌─────▼──────┐
+    │  Auth   │     │ Customer  │    │  Account   │
+    │ (8081)  │     │  (8082)   │    │  (8083)    │
+    └─────────┘     └───────────┘    └────────────┘
+         │                 │                 │
+    ┌────▼────────────────▼─────────────────▼──────┐
+    │              PostgreSQL (per-service DBs)     │
+    └──────────────────────────────────────────────┘
 
-![loretta_load](https://github.com/user-attachments/assets/5ed0e259-9a34-401c-ae56-07bb974d81d3)
+    ┌─────────────┐  ┌──────────────┐  ┌────────────┐
+    │ Transaction  │  │ Notification │  │   Audit    │
+    │   (8084)     │  │   (8085)     │  │  (8086)    │
+    └──────┬───────┘  └──────┬───────┘  └─────┬──────┘
+           │                 │                │
+    ┌──────▼─────────────────▼────────────────▼────┐
+    │                  Apache Kafka                 │
+    └──────────────────────────────────────────────┘
 
-Loretta Bank is a modern online banking system built with a Spring Boot backend and a React frontend. The system consists of multiple microservices deployed on a Kubernetes cluster and provides features for user management, account management, transactions, loans, cards, and customer support.
+    ┌─────────────┐     ┌──────────┐
+    │  Reporting   │     │  Redis   │
+    │   (8087)     │     │ (cache)  │
+    └─────────────┘     └──────────┘
+```
 
-## Project Structure
+## Services
 
-The project is divided into two main parts:
+| Service | Port | Description |
+|---------|------|-------------|
+| **discovery-service** | 8761 | Eureka service registry |
+| **api-gateway** | 8080 | Entry point, JWT validation, rate limiting |
+| **auth-service** | 8081 | Authentication, JWT tokens, user management |
+| **customer-service** | 8082 | Customer profiles, KYC status |
+| **account-service** | 8083 | Bank accounts, balances, deposits/withdrawals |
+| **transaction-service** | 8084 | Double-entry ledger, transfers with saga pattern |
+| **notification-service** | 8085 | Event-driven notifications (email/SMS stubs) |
+| **audit-service** | 8086 | Immutable audit log from domain events |
+| **reporting-service** | 8087 | Account statements and reports |
 
-1. **Server**: A Spring Boot application consisting of multiple microservices.
-2. **Client**: A React application that interacts with the backend services.
+## Tech Stack
+
+- **Java 21** + **Spring Boot 3.4**
+- **Spring Cloud** (Eureka, Gateway)
+- **PostgreSQL** (per-service databases)
+- **Apache Kafka** (domain events, outbox pattern)
+- **Redis** (caching, token blacklist, rate limiting)
+- **Flyway** (database migrations)
+- **MapStruct** + **Lombok** (mapping, boilerplate)
+- **SpringDoc OpenAPI** (Swagger UI per service)
+- **Micrometer/Prometheus** (metrics)
+- **Testcontainers** (integration tests)
+- **Spotless** (code formatting)
+
+## Key Patterns
+
+- **Outbox Pattern**: Events published via transactional outbox to avoid dual-write issues
+- **Saga Pattern**: Orchestration-based saga for inter-account transfers with compensation
+- **Double-Entry Ledger**: Every transaction creates matching debit/credit entries
+- **CQRS-lite**: Separate read/write paths where applicable
+- **JWT + Gateway Auth**: Gateway validates tokens and forwards user context headers
 
 ## Prerequisites
 
-- Java 22
-- Maven 3.8+
-- Docker
-- Kubernetes cluster
-- Node.js 16+
-- PostgreSQL 14+
-- Neo4j (for customer-support-service)
-- Redis (used across all services)
+- Docker & Docker Compose
+- Java 21 (for local dev without Docker)
+- Maven 3.9+ (for local dev without Docker)
 
-## Getting Started
+## Quick Start
 
-### Server Setup
-
-#### Microservices
-
-The backend consists of the following microservices:
-
-- **User Service**: Manages user data and authentication.
-  - **API Endpoint**: `/api/users`
-- **Account Service**: Manages bank accounts.
-  - **API Endpoint**: `/api/account`
-- **Transaction Service**: Handles transactions between accounts.
-  - **API Endpoint**: `/api/transactions`
-- **Loan Service**: Manages loan applications and information.
-  - **API Endpoint**: `/api/loans`
-- **Card Service**: Manages credit and debit cards.
-  - **API Endpoint**: `/api/cards`
-- **Customer Support Service**: Handles customer support tickets and inquiries.
-  - **API Endpoint**: `/api/customer-support`
-  - **Database**: Uses Neo4j for storing customer support-related data.
-
-Each service is a separate Spring Boot application and utilizes Redis for caching and session management.
-
-#### Building the Server
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/7irelo/loretta-bank.git
-   cd loretta-bank/server
-   ```
-
-2. **Build the project:**
-   ```bash
-   mvn clean install
-   ```
-
-3. **Run the services locally:**
-   Each service can be run independently. Navigate to each service directory and use:
-   ```bash
-   mvn spring-boot:run
-   ```
-
-#### Docker and Kubernetes
-
-1. **Build Docker images for each service:**
-   ```bash
-   docker build -t user-service:latest -f docker/Dockerfile.user .
-   ```
-
-2. **Push images to a container registry:**
-   ```bash
-   docker tag user-service:latest your-dockerhub-repo/user-service:latest
-   docker push your-dockerhub-repo/user-service:latest
-   ```
-
-3. **Deploy to Kubernetes:**
-   Apply the Kubernetes configurations for each service:
-   ```bash
-   kubectl apply -f kubernetes/deployment.user.yaml
-   ```
-
-### Client Setup
-
-The frontend is a React application that interacts with the backend services.
-
-1. **Navigate to the client directory:**
-   ```bash
-   cd ../client
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Run the client locally:**
-   ```bash
-   npm start
-   ```
-
-The client application will be accessible at `http://localhost:3000`.
-
-## Configuration
-
-### Server Configuration
-
-The server configuration files are located in `src/main/resources/application.properties` for each service. Key configurations include:
-
-- **Database Connection:**
-  ```properties
-  spring.datasource.url=jdbc:postgresql://postgres-service:5432/lorettabank
-  spring.datasource.username=postgres
-  spring.datasource.password=your_password
-  ```
-
-- **Redis Configuration:**
-  ```properties
-  spring.redis.host=redis-service
-  spring.redis.port=6379
-  ```
-
-- **Neo4j Configuration (for customer-support-service):**
-  ```properties
-  spring.data.neo4j.uri=bolt://neo4j-service:7687
-  spring.data.neo4j.username=neo4j
-  spring.data.neo4j.password=your_password
-  ```
-
-### Client Configuration
-
-The client configuration can be adjusted in the `src/config.js` file to set API endpoints and other global settings.
-
-## Running Tests
-
-### Server Tests
-
-To run tests for the server, execute the following command in the server root:
+### With Docker Compose (recommended)
 
 ```bash
-mvn test
+docker compose up --build
 ```
 
-### Client Tests
+This starts: PostgreSQL, Kafka, Redis, and all 9 microservices.
 
-To run tests for the client, use:
+Wait for all services to register with Eureka (check http://localhost:8761).
+
+Default bootstrap admin user (created by `auth-service` on first start):
+
+- Email: `admin@lorettabank.co.za`
+- Password: `AdminPass123!`
+
+You can change these via `AUTH_BOOTSTRAP_ADMIN_EMAIL` and `AUTH_BOOTSTRAP_ADMIN_PASSWORD`.
+
+### Local Development
+
+1. Start infrastructure:
+```bash
+docker compose up postgres kafka redis
+```
+
+2. Build and run:
+```bash
+cd server
+mvn clean install -DskipTests
+```
+
+3. Run services individually:
+```bash
+cd server/discovery-service && mvn spring-boot:run
+cd server/api-gateway && mvn spring-boot:run
+cd server/auth-service && mvn spring-boot:run
+# ... etc
+```
+
+## Sample API Flow
+
+All requests go through the gateway at `http://localhost:8080`.
+
+### 1. Register a User
 
 ```bash
-npm test
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "john@lorettabank.co.za",
+    "password": "SecurePass123!",
+    "firstName": "John",
+    "lastName": "Doe"
+  }'
 ```
 
-## Deployment
+### 2. Login
 
-For production deployment, ensure the following:
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "john@lorettabank.co.za",
+    "password": "SecurePass123!"
+  }'
+```
 
-1. **Docker Images**: All services should be containerized and pushed to a Docker registry.
-2. **Kubernetes Cluster**: Services are deployed to a Kubernetes cluster using the provided YAML configurations.
-3. **Environment Variables**: Set appropriate environment variables for database connections, API keys, etc.
+Save the `accessToken` from the response.
 
-## Contributing
+### 3. Create Customer Profile
 
-Contributions are welcome! Please fork the repository and create a pull request with your changes.
+```bash
+export TOKEN="<your-access-token>"
+
+curl -X POST http://localhost:8080/api/v1/customers \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "userId": 1,
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "john@lorettabank.co.za",
+    "phoneNumber": "+27821234567",
+    "idNumber": "9501015800089",
+    "dateOfBirth": "1995-01-01",
+    "address": "123 Main Street, Cape Town, 8001"
+  }'
+```
+
+### 4. Open an Account
+
+```bash
+curl -X POST http://localhost:8080/api/v1/accounts \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "customerId": 1,
+    "accountType": "CHECKING",
+    "currency": "ZAR",
+    "initialDeposit": 10000.00
+  }'
+```
+
+### 5. Deposit Money
+
+```bash
+curl -X POST http://localhost:8080/api/v1/accounts/1/deposit \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: dep-$(uuidgen)" \
+  -d '{
+    "amount": 5000.00,
+    "reference": "Salary deposit"
+  }'
+```
+
+### 6. Transfer Between Accounts
+
+```bash
+curl -X POST http://localhost:8080/api/v1/transfers \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: xfer-$(uuidgen)" \
+  -d '{
+    "sourceAccountId": 1,
+    "targetAccountId": 2,
+    "amount": 2000.00,
+    "currency": "ZAR",
+    "description": "Savings transfer"
+  }'
+```
+
+### 7. View Transactions
+
+```bash
+curl http://localhost:8080/api/v1/transactions/account/1 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### 8. Generate Statement
+
+```bash
+curl -X POST http://localhost:8080/api/v1/reports/statements \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "accountId": 1,
+    "periodFrom": "2025-01-01T00:00:00",
+    "periodTo": "2025-12-31T23:59:59"
+  }'
+```
+
+### 9. View Audit Trail (Admin)
+
+```bash
+curl http://localhost:8080/api/v1/audit?page=0&size=20 \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+### 10. Promote a user role (Admin)
+
+```bash
+curl -X PUT http://localhost:8080/api/v1/auth/users/2/role \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"role":"SUPPORT"}'
+```
+
+## Swagger UI
+
+Each service exposes OpenAPI docs:
+- Auth: http://localhost:8081/swagger-ui.html
+- Customer: http://localhost:8082/swagger-ui.html
+- Account: http://localhost:8083/swagger-ui.html
+- Transaction: http://localhost:8084/swagger-ui.html
+- Notification: http://localhost:8085/swagger-ui.html
+- Audit: http://localhost:8086/swagger-ui.html
+- Reporting: http://localhost:8087/swagger-ui.html
+
+## Roles & Authorization
+
+| Role | Capabilities |
+|------|-------------|
+| **CUSTOMER** | Own profile, own accounts, own transactions, own statements |
+| **SUPPORT** | Read-only access to customer data, accounts, audit logs |
+| **ADMIN** | Full access: manage users, KYC, freeze/close accounts, audit |
+
+## Testing
+
+```bash
+cd server
+mvn test                          # Unit tests
+mvn verify                        # Unit + integration tests
+mvn spotless:check                # Check formatting
+mvn spotless:apply                # Fix formatting
+```
+
+## Monitoring
+
+- **Health checks**: `GET /actuator/health` on each service
+- **Metrics**: `GET /actuator/prometheus` (Prometheus format)
+- **Eureka dashboard**: http://localhost:8761
+
+## Design Decisions
+
+1. **Outbox Pattern over direct Kafka publish**: Ensures atomicity between DB writes and event publishing. A scheduled poller reads unpublished events and sends them to Kafka.
+
+2. **Orchestration Saga for transfers**: The transaction-service orchestrates the transfer saga (debit source -> credit target) with compensation on failure, rather than choreography, for easier reasoning and debugging.
+
+3. **Gateway-based auth**: The API gateway validates JWTs and forwards user context (X-User-Id, X-User-Roles) to downstream services. Services trust these headers since they're only reachable through the gateway.
+
+4. **BigDecimal with scale 4**: All monetary values use `NUMERIC(19,4)` for precision. Currency defaults to ZAR but is extensible.
+
+5. **Separate databases per service**: Each service has its own PostgreSQL database for data isolation, following microservices best practices.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE)

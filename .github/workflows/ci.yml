@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: loretta
+          POSTGRES_PASSWORD: loretta_secret
+          POSTGRES_DB: loretta_auth
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U loretta"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_URL: jdbc:postgresql://localhost:5432/loretta_auth
+      DB_USERNAME: loretta
+      DB_PASSWORD: loretta_secret
+      KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+      REDIS_HOST: localhost
+      JWT_SECRET: loretta-bank-jwt-secret-key-that-is-at-least-256-bits-long-for-hs256
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Create test databases
+        run: |
+          PGPASSWORD=loretta_secret psql -h localhost -U loretta -d loretta_auth -c "SELECT 1;"
+          for db in loretta_customer loretta_account loretta_transaction loretta_notification loretta_audit loretta_reporting; do
+            PGPASSWORD=loretta_secret psql -h localhost -U loretta -d postgres -c "CREATE DATABASE $db;" || true
+          done
+
+      - name: Check formatting
+        working-directory: server
+        run: mvn spotless:check -q
+
+      - name: Static checks
+        working-directory: server
+        run: mvn checkstyle:check -q
+
+      - name: Build and test
+        working-directory: server
+        run: mvn verify -q -Dspring.profiles.active=test -Deureka.client.enabled=false

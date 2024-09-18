@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/loretta_reporting
+    username: loretta
+    password: loretta_secret
+
+eureka:
+  client:
+    enabled: false
+
+account-service:
+  url: http://localhost:8083
+transaction-service:
+  url: http://localhost:8084
+customer-service:
+  url: http://localhost:8082

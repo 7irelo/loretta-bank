@@ -1,0 +1,55 @@
+### Record a deposit
+POST http://localhost:8080/api/v1/transactions/deposit
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: txn-dep-001
+
+{
+  "accountId": 1,
+  "amount": 1000.00,
+  "currency": "ZAR",
+  "description": "Initial deposit"
+}
+
+### Record a withdrawal
+POST http://localhost:8080/api/v1/transactions/withdraw
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: txn-wd-001
+
+{
+  "accountId": 1,
+  "amount": 200.00,
+  "currency": "ZAR",
+  "description": "Cash withdrawal"
+}
+
+### Initiate a transfer
+POST http://localhost:8080/api/v1/transfers
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: xfer-001
+
+{
+  "sourceAccountId": 1,
+  "targetAccountId": 2,
+  "amount": 500.00,
+  "currency": "ZAR",
+  "description": "Rent payment"
+}
+
+### Get transfer status
+GET http://localhost:8080/api/v1/transfers/{{transferId}}
+Authorization: Bearer {{accessToken}}
+
+### Get transaction by ID
+GET http://localhost:8080/api/v1/transactions/{{transactionId}}
+Authorization: Bearer {{accessToken}}
+
+### Get transactions for account
+GET http://localhost:8080/api/v1/transactions/account/1?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### Get ledger entries for account
+GET http://localhost:8080/api/v1/transactions/account/1/ledger?page=0&size=20
+Authorization: Bearer {{accessToken}}

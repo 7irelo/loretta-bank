@@ -1,0 +1,11 @@
+### Search audit logs (admin/support)
+GET http://localhost:8080/api/v1/audit?eventType=ACCOUNT_OPENED&page=0&size=20
+Authorization: Bearer {{adminAccessToken}}
+
+### Get audit trail for aggregate
+GET http://localhost:8080/api/v1/audit/aggregate/ACCOUNT/1?page=0&size=20
+Authorization: Bearer {{adminAccessToken}}
+
+### Get audit logs by date range
+GET http://localhost:8080/api/v1/audit?from=2025-01-01T00:00:00Z&to=2025-12-31T23:59:59Z&page=0&size=50
+Authorization: Bearer {{adminAccessToken}}
