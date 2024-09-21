@@ -14,8 +14,8 @@ public class TransactionRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public List<TransactionDTO> findLatest10ByAccountId(int accountId) {
-        String query = "SELECT * FROM transactions WHERE account_id = ? ORDER BY date DESC LIMIT 10";
+    public List<TransactionDTO> findLatest15ByAccountId(int accountId) {
+        String query = "SELECT * FROM transactions WHERE account_id = ? ORDER BY date DESC LIMIT 15";
         return jdbcTemplate.query(query, new Object[]{accountId}, new TransactionRowMapper());
     }
 }
