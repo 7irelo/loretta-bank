@@ -1,0 +1,61 @@
+@import "../styles/theme.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  border-color: rgb(var(--line));
+}
+
+body {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f3f7fb 0%, #eef4fa 100%);
+  color: rgb(var(--ink));
+}
+
+a {
+  color: inherit;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display;
+  }
+}
+
+@layer components {
+  .table-shell {
+    @apply overflow-hidden rounded-xl border border-line bg-white;
+  }
+
+  .table-base {
+    @apply min-w-full divide-y divide-line text-sm;
+  }
+
+  .table-base thead {
+    @apply bg-surface;
+  }
+
+  .table-base th {
+    @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted;
+  }
+
+  .table-base td {
+    @apply px-4 py-3 text-slate;
+  }
+
+  .table-base tbody tr {
+    @apply border-t border-line;
+  }
+
+  .table-base tbody tr:hover {
+    @apply bg-surface/60;
+  }
+}
+
