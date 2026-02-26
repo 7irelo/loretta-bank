@@ -46,13 +46,25 @@ npm install
 npm run dev
 ```
 
-App runs at `http://localhost:3000`.
+App runs at `http://localhost:3000` by default.
+
+If `3000` is already in use:
+
+```bash
+npm run dev:3001
+```
 
 ## Production Build
 
 ```bash
 npm run build
 npm run start
+```
+
+If `3000` is in use for production start:
+
+```bash
+npm run start:3001
 ```
 
 ## Docker
@@ -75,10 +87,11 @@ The frontend is wired to the Loretta Bank backend routes:
 
 - `POST /api/v1/auth/login`
 - `POST /api/v1/auth/register`
-- `GET /api/v1/accounts`
+- `GET /api/v1/customers/me`
+- `GET /api/v1/accounts/customer/{customerId}`
 - `POST /api/v1/accounts`
-- `GET /api/v1/transactions`
-- `POST /api/v1/transactions/transfer`
+- `GET /api/v1/transactions/account/{accountId}`
+- `POST /api/v1/transfers`
 - `GET /api/v1/customers`
 
 ## Quality Commands

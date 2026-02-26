@@ -13,7 +13,7 @@ import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth-store";
 
 export default function DashboardPage() {
-  const { user } = useAuthStore((state) => ({ user: state.user }));
+  const user = useAuthStore((state) => state.user);
   const accountsQuery = useAccountsQuery();
   const transactionsQuery = useTransactionsQuery({ page: 0, size: 5 });
 

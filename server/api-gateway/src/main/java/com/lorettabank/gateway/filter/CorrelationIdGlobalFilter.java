@@ -30,18 +30,20 @@ public class CorrelationIdGlobalFilter implements GlobalFilter, Ordered {
                         .mutate()
                         .header(CORRELATION_ID_HEADER, correlationId)
                         .build();
-
         String finalCorrelationId = correlationId;
+        ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
+        mutatedExchange
+                .getResponse()
+                .beforeCommit(
+                        () -> {
+                            mutatedExchange
+                                    .getResponse()
+                                    .getHeaders()
+                                    .set(CORRELATION_ID_HEADER, finalCorrelationId);
+                            return Mono.empty();
+                        });
 
-        return chain.filter(exchange.mutate().request(mutatedRequest).build())
-                .then(
-                        Mono.fromRunnable(
-                                () ->
-                                        exchange.getResponse()
-                                                .getHeaders()
-                                                .add(
-                                                        CORRELATION_ID_HEADER,
-                                                        finalCorrelationId)));
+        return chain.filter(mutatedExchange);
     }
 
     @Override

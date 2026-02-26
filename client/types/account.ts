@@ -13,6 +13,6 @@ export interface CreateAccountPayload {
   customerId: string;
   accountType: string;
   currency?: string;
-  initialBalance?: number;
+  initialDeposit?: number;
 }
 

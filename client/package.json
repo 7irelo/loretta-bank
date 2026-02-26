@@ -8,9 +8,11 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "cross-env NEXT_IGNORE_INCORRECT_LOCKFILE=1 next dev",
+    "dev:3001": "cross-env NEXT_IGNORE_INCORRECT_LOCKFILE=1 next dev -p 3001",
+    "build": "cross-env NEXT_IGNORE_INCORRECT_LOCKFILE=1 next build",
+    "start": "cross-env NEXT_IGNORE_INCORRECT_LOCKFILE=1 next start",
+    "start:3001": "cross-env NEXT_IGNORE_INCORRECT_LOCKFILE=1 next start -p 3001",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write ."
@@ -35,6 +37,7 @@
     "@types/react": "^18.3.20",
     "@types/react-dom": "^18.3.6",
     "autoprefixer": "^10.4.20",
+    "cross-env": "^7.0.3",
     "eslint": "^8.57.1",
     "eslint-config-next": "^14.2.25",
     "eslint-config-prettier": "^10.1.1",
@@ -45,6 +48,3 @@
     "typescript": "^5.8.2"
   }
 }
-
-
-

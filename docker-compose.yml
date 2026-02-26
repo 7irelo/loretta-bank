@@ -1,6 +1,4 @@
-version: "3.9"
-
-services:
+﻿services:
   # --- Infrastructure ---
 
   postgres:
@@ -11,7 +9,7 @@ services:
       POSTGRES_PASSWORD: loretta_secret
       POSTGRES_DB: loretta_auth
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
@@ -41,16 +39,21 @@ services:
     ports:
       - "9092:9092"
     healthcheck:
-      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      test:
+        [
+          "CMD-SHELL",
+          "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"
+        ]
       interval: 10s
       timeout: 10s
-      retries: 10
+      retries: 20
+      start_period: 60s
 
   redis:
     image: redis:7.4-alpine
     container_name: loretta-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -80,13 +83,15 @@ services:
     ports:
       - "8080:8080"
     environment:
-      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
       REDIS_HOST: redis
       JWT_SECRET: loretta-bank-jwt-secret-key-that-is-at-least-256-bits-long-for-hs256
     depends_on:
       discovery-service:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      auth-service:
         condition: service_healthy
 
   auth-service:
@@ -101,7 +106,7 @@ services:
       DB_USERNAME: loretta
       DB_PASSWORD: loretta_secret
       REDIS_HOST: redis
-      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
       JWT_SECRET: loretta-bank-jwt-secret-key-that-is-at-least-256-bits-long-for-hs256
     depends_on:
       postgres:
@@ -110,6 +115,12 @@ services:
         condition: service_healthy
       discovery-service:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 240s
 
   customer-service:
     build:
@@ -124,7 +135,7 @@ services:
       DB_PASSWORD: loretta_secret
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
       CUSTOMER_SERVICE_URL: http://customer-service:8082
     depends_on:
       postgres:
@@ -149,7 +160,8 @@ services:
       DB_PASSWORD: loretta_secret
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
+      CUSTOMER_SERVICE_URL: http://customer-service:8082
     depends_on:
       postgres:
         condition: service_healthy
@@ -172,7 +184,7 @@ services:
       DB_USERNAME: loretta
       DB_PASSWORD: loretta_secret
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
       ACCOUNT_SERVICE_URL: http://account-service:8083
       CUSTOMER_SERVICE_URL: http://customer-service:8082
     depends_on:
@@ -197,7 +209,7 @@ services:
       DB_USERNAME: loretta
       DB_PASSWORD: loretta_secret
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
     depends_on:
       postgres:
         condition: service_healthy
@@ -218,7 +230,7 @@ services:
       DB_USERNAME: loretta
       DB_PASSWORD: loretta_secret
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
     depends_on:
       postgres:
         condition: service_healthy
@@ -239,7 +251,7 @@ services:
       DB_USERNAME: loretta
       DB_PASSWORD: loretta_secret
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka
+      EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
       ACCOUNT_SERVICE_URL: http://account-service:8083
       TRANSACTION_SERVICE_URL: http://transaction-service:8084
       CUSTOMER_SERVICE_URL: http://customer-service:8082

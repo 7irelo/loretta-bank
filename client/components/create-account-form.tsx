@@ -14,17 +14,17 @@ const createAccountSchema = z.object({
   customerId: z.string().min(1, "Customer is required."),
   accountType: z.string().min(1, "Account type is required."),
   currency: z.string().min(3, "Currency is required.").max(3, "Currency must be 3 letters."),
-  initialBalance: z.coerce.number().min(0, "Initial balance cannot be negative.")
+  initialDeposit: z.coerce.number().min(0, "Initial deposit cannot be negative.")
 });
 
 interface CreateAccountFormProps {
   className?: string;
 }
 
-const accountTypes = ["CHECKING", "SAVINGS", "BUSINESS"];
+const accountTypes = ["CHECKING", "SAVINGS"];
 
 export function CreateAccountForm({ className }: CreateAccountFormProps) {
-  const { user } = useAuthStore((state) => ({ user: state.user }));
+  const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role === "ADMIN";
   const { data: customers = [], isLoading: customersLoading } = useCustomersQuery(isAdmin);
   const createAccountMutation = useCreateAccountMutation();
@@ -33,7 +33,7 @@ export function CreateAccountForm({ className }: CreateAccountFormProps) {
     customerId: "",
     accountType: "CHECKING",
     currency: "ZAR",
-    initialBalance: "0"
+    initialDeposit: "0"
   });
   const [errors, setErrors] = useState<Partial<Record<keyof typeof formState, string>>>({});
 
@@ -59,7 +59,7 @@ export function CreateAccountForm({ className }: CreateAccountFormProps) {
       customerId: formState.customerId,
       accountType: formState.accountType,
       currency: formState.currency.toUpperCase(),
-      initialBalance: formState.initialBalance
+      initialDeposit: formState.initialDeposit
     });
 
     if (!parsed.success) {
@@ -69,7 +69,7 @@ export function CreateAccountForm({ className }: CreateAccountFormProps) {
         customerId: fieldErrors.customerId?.[0],
         accountType: fieldErrors.accountType?.[0],
         currency: fieldErrors.currency?.[0],
-        initialBalance: fieldErrors.initialBalance?.[0]
+        initialDeposit: fieldErrors.initialDeposit?.[0]
       });
       return;
     }
@@ -82,7 +82,7 @@ export function CreateAccountForm({ className }: CreateAccountFormProps) {
           customerId: "",
           accountType: "CHECKING",
           currency: "ZAR",
-          initialBalance: "0"
+          initialDeposit: "0"
         });
       }
     });
@@ -147,16 +147,16 @@ export function CreateAccountForm({ className }: CreateAccountFormProps) {
           </label>
 
           <label className="space-y-1 text-sm md:col-span-2">
-            <span className="font-medium text-slate">Initial Balance</span>
+            <span className="font-medium text-slate">Initial Deposit</span>
             <Input
               type="number"
               min="0"
               step="0.01"
-              value={formState.initialBalance}
-              onChange={(event) => setFormState((prev) => ({ ...prev, initialBalance: event.target.value }))}
+              value={formState.initialDeposit}
+              onChange={(event) => setFormState((prev) => ({ ...prev, initialDeposit: event.target.value }))}
               disabled={createAccountMutation.isPending}
             />
-            {errors.initialBalance ? <p className="text-xs text-danger">{errors.initialBalance}</p> : null}
+            {errors.initialDeposit ? <p className="text-xs text-danger">{errors.initialDeposit}</p> : null}
           </label>
 
           <div className="md:col-span-2">

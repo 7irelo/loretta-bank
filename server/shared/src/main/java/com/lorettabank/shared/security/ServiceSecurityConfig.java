@@ -36,11 +36,11 @@ public class ServiceSecurityConfig {
                                 auth.requestMatchers(
                                                 "/actuator/**",
                                                 "/v3/api-docs/**",
-                                                "/api/**/v3/api-docs/**",
+                                                "/api/v1/*/v3/api-docs/**",
                                                 "/swagger-ui/**",
                                                 "/swagger-ui.html",
-                                                "/api/**/swagger-ui/**",
-                                                "/api/**/swagger-ui.html")
+                                                "/api/v1/*/swagger-ui/**",
+                                                "/api/v1/*/swagger-ui.html")
                                         .permitAll()
                                         .anyRequest()
                                         .authenticated())

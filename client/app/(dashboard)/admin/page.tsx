@@ -11,7 +11,7 @@ import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth-store";
 
 export default function AdminPage() {
-  const { user } = useAuthStore((state) => ({ user: state.user }));
+  const user = useAuthStore((state) => state.user);
   const isAllowed = user?.role === "ADMIN" || user?.role === "SUPPORT";
 
   const customersQuery = useCustomersQuery(isAllowed);

@@ -68,12 +68,10 @@ const navigationItems: NavigationItem[] = [
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { token, user, hydrated, clearSession } = useAuthStore((state) => ({
-    token: state.token,
-    user: state.user,
-    hydrated: state.hydrated,
-    clearSession: state.clearSession
-  }));
+  const token = useAuthStore((state) => state.token);
+  const user = useAuthStore((state) => state.user);
+  const hydrated = useAuthStore((state) => state.hydrated);
+  const clearSession = useAuthStore((state) => state.clearSession);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   useEffect(() => {

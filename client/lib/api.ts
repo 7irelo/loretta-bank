@@ -1,5 +1,3 @@
-"use client";
-
 import axios, { AxiosError } from "axios";
 import toast from "react-hot-toast";
 
@@ -17,6 +15,23 @@ type ApiRecord = Record<string, unknown>;
 
 const isRecord = (value: unknown): value is ApiRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+const asString = (value: unknown): string => (typeof value === "string" ? value : "");
+
+const asNumber = (value: unknown, fallback = 0): number => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+};
 
 const unwrapApiPayload = <T>(payload: unknown): T => {
   if (isRecord(payload) && "data" in payload) {
@@ -59,6 +74,86 @@ export const normalizePaginatedResponse = <T>(payload: unknown): PaginatedRespon
   };
 };
 
+const normalizeAccount = (raw: unknown): Account => {
+  const source = (raw ?? {}) as ApiRecord;
+
+  return {
+    id: String(source.id ?? ""),
+    accountNumber: asString(source.accountNumber),
+    accountType: asString(source.accountType),
+    balance: asNumber(source.balance),
+    currency: asString(source.currency) || "ZAR",
+    customerId: String(source.customerId ?? ""),
+    status: asString(source.status) || "ACTIVE",
+    createdAt: asString(source.createdAt)
+  };
+};
+
+const normalizeTransaction = (raw: unknown): Transaction => {
+  const source = (raw ?? {}) as ApiRecord;
+
+  return {
+    id: String(source.id ?? source.transferId ?? ""),
+    accountId: String(source.accountId ?? ""),
+    sourceAccountId: String(source.sourceAccountId ?? ""),
+    targetAccountId: String(source.targetAccountId ?? ""),
+    amount: asNumber(source.amount),
+    currency: asString(source.currency) || "ZAR",
+    type: asString(source.type) || "TRANSFER",
+    description: asString(source.description),
+    reference: asString(source.reference),
+    createdAt: asString(source.createdAt) || new Date().toISOString()
+  };
+};
+
+const filterTransactions = (transactions: Transaction[], filters: TransactionFilters): Transaction[] => {
+  const normalizedType = filters.type?.trim().toUpperCase() ?? "";
+  const startAt = filters.startDate ? new Date(`${filters.startDate}T00:00:00`).getTime() : null;
+  const endAt = filters.endDate ? new Date(`${filters.endDate}T23:59:59.999`).getTime() : null;
+
+  return transactions.filter((transaction) => {
+    if (normalizedType && transaction.type.toUpperCase() !== normalizedType) {
+      return false;
+    }
+
+    const createdAt = new Date(transaction.createdAt).getTime();
+    if (startAt !== null && createdAt < startAt) {
+      return false;
+    }
+
+    if (endAt !== null && createdAt > endAt) {
+      return false;
+    }
+
+    return true;
+  });
+};
+
+const paginateTransactions = (
+  transactions: Transaction[],
+  page: number,
+  size: number
+): PaginatedResponse<Transaction> => {
+  const safeSize = Math.max(size, 1);
+  const safePage = Math.max(page, 0);
+  const totalElements = transactions.length;
+  const totalPages = Math.max(Math.ceil(totalElements / safeSize), 1);
+  const startIndex = safePage * safeSize;
+  const content = transactions.slice(startIndex, startIndex + safeSize);
+
+  return {
+    content,
+    page: safePage,
+    size: safeSize,
+    totalElements,
+    totalPages,
+    first: safePage === 0,
+    last: safePage + 1 >= totalPages
+  };
+};
+
+let cachedCustomerId: string | null = null;
+
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
@@ -83,6 +178,8 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401 && typeof window !== "undefined") {
+      cachedCustomerId = null;
+
       const authStore = useAuthStore.getState();
 
       authStore.clearSession();
@@ -127,70 +224,69 @@ export const getApiErrorMessage = (error: unknown, fallback: string): string => 
   return fallback;
 };
 
+const resolveCurrentCustomerId = async (): Promise<string | null> => {
+  const role = useAuthStore.getState().user?.role;
+  if (role && role !== "CUSTOMER") {
+    return null;
+  }
+
+  if (cachedCustomerId) {
+    return cachedCustomerId;
+  }
+
+  const response = await apiClient.get("/api/v1/customers/me");
+  const raw = unwrapApiPayload<unknown>(response.data);
+  const customerIdValue = (raw as ApiRecord).id;
+  const customerId =
+    customerIdValue === null || customerIdValue === undefined ? "" : String(customerIdValue);
+
+  if (!customerId) {
+    return null;
+  }
+
+  cachedCustomerId = customerId;
+  return customerId;
+};
+
 export const authApi = {
   login: async (payload: LoginPayload): Promise<AuthSession> => {
     const response = await apiClient.post("/api/v1/auth/login", payload);
     const raw = unwrapApiPayload<unknown>(response.data);
+    cachedCustomerId = null;
 
     return normalizeAuthSession(raw);
   },
   register: async (payload: RegisterPayload): Promise<AuthSession> => {
-    const response = await apiClient.post("/api/v1/auth/register", payload);
+    const [firstName, ...rest] = payload.fullName.trim().split(/\s+/);
+    const lastName = rest.join(" ");
+    const response = await apiClient.post("/api/v1/auth/register", {
+      email: payload.email,
+      password: payload.password,
+      firstName: firstName || payload.email.split("@")[0],
+      lastName: lastName || "Customer"
+    });
     const raw = unwrapApiPayload<unknown>(response.data);
+    cachedCustomerId = null;
 
     return normalizeAuthSession(raw);
   }
 };
 
-export const accountsApi = {
-  getAll: async (): Promise<Account[]> => {
-    const response = await apiClient.get("/api/v1/accounts");
-    const raw = unwrapApiPayload<unknown>(response.data);
-
-    if (Array.isArray(raw)) {
-      return raw as Account[];
-    }
-
-    if (isRecord(raw) && Array.isArray(raw.content)) {
-      return raw.content as Account[];
-    }
-
-    return [];
-  },
-  create: async (payload: CreateAccountPayload): Promise<Account> => {
-    const response = await apiClient.post("/api/v1/accounts", payload);
-
-    return unwrapApiPayload<Account>(response.data);
-  }
-};
-
-export const transactionsApi = {
-  getAll: async (filters: TransactionFilters): Promise<PaginatedResponse<Transaction>> => {
-    const response = await apiClient.get("/api/v1/transactions", {
-      params: {
-        page: filters.page ?? 0,
-        size: filters.size ?? 10,
-        type: filters.type || undefined,
-        startDate: filters.startDate || undefined,
-        endDate: filters.endDate || undefined,
-        accountId: filters.accountId || undefined
-      }
-    });
-
-    return normalizePaginatedResponse<Transaction>(response.data);
-  },
-  transfer: async (payload: TransferPayload, idempotencyKey: string): Promise<Transaction> => {
-    const response = await apiClient.post("/api/v1/transactions/transfer", payload, {
-      headers: {
-        "Idempotency-Key": idempotencyKey
-      }
-    });
-
-    return unwrapApiPayload<Transaction>(response.data);
-  }
-};
-
 export const customersApi = {
+  getMe: async (): Promise<Customer> => {
+    const response = await apiClient.get("/api/v1/customers/me");
+    const raw = unwrapApiPayload<unknown>(response.data);
+    const source = (raw ?? {}) as ApiRecord;
+
+    return {
+      id: String(source.id ?? ""),
+      firstName: asString(source.firstName),
+      lastName: asString(source.lastName),
+      email: asString(source.email),
+      phoneNumber: asString(source.phoneNumber) || undefined,
+      createdAt: asString(source.createdAt) || undefined
+    };
+  },
   getAll: async (): Promise<Customer[]> => {
     const response = await apiClient.get("/api/v1/customers");
     const raw = unwrapApiPayload<unknown>(response.data);
@@ -207,4 +303,116 @@ export const customersApi = {
   }
 };
 
+export const accountsApi = {
+  getAll: async (): Promise<Account[]> => {
+    const role = useAuthStore.getState().user?.role;
 
+    if (role === "ADMIN" || role === "SUPPORT") {
+      const customers = await customersApi.getAll();
+      if (customers.length === 0) {
+        return [];
+      }
+
+      const perCustomerAccounts = await Promise.all(
+        customers.map(async (customer) => {
+          const response = await apiClient.get(`/api/v1/accounts/customer/${customer.id}`);
+          const raw = unwrapApiPayload<unknown>(response.data);
+          const rows = Array.isArray(raw) ? raw : [];
+          return rows.map((account) => normalizeAccount(account));
+        })
+      );
+
+      return perCustomerAccounts.flat();
+    }
+
+    const customerId = await resolveCurrentCustomerId();
+    if (!customerId) {
+      return [];
+    }
+
+    const response = await apiClient.get(`/api/v1/accounts/customer/${customerId}`);
+    const raw = unwrapApiPayload<unknown>(response.data);
+    const rows = Array.isArray(raw) ? raw : [];
+
+    return rows.map((account) => normalizeAccount(account));
+  },
+  create: async (payload: CreateAccountPayload): Promise<Account> => {
+    const parsedCustomerId = Number(payload.customerId);
+    const requestBody = {
+      customerId: Number.isFinite(parsedCustomerId) ? parsedCustomerId : payload.customerId,
+      accountType: payload.accountType,
+      currency: (payload.currency || "ZAR").toUpperCase(),
+      initialDeposit: payload.initialDeposit ?? 0
+    };
+    const response = await apiClient.post("/api/v1/accounts", requestBody);
+
+    return normalizeAccount(unwrapApiPayload<unknown>(response.data));
+  }
+};
+
+export const transactionsApi = {
+  getAll: async (filters: TransactionFilters): Promise<PaginatedResponse<Transaction>> => {
+    const page = filters.page ?? 0;
+    const size = filters.size ?? 10;
+
+    if (filters.accountId) {
+      const response = await apiClient.get(`/api/v1/transactions/account/${filters.accountId}`, {
+        params: { page, size }
+      });
+      const pageData = normalizePaginatedResponse<unknown>(response.data);
+      const normalized = pageData.content.map((transaction) => normalizeTransaction(transaction));
+      const filtered = filterTransactions(normalized, filters);
+
+      return paginateTransactions(filtered, page, size);
+    }
+
+    const accounts = await accountsApi.getAll();
+    if (accounts.length === 0) {
+      return paginateTransactions([], page, size);
+    }
+
+    const fetchSize = Math.max(size * 3, 50);
+    const perAccountPages = await Promise.all(
+      accounts.map(async (account) => {
+        const response = await apiClient.get(`/api/v1/transactions/account/${account.id}`, {
+          params: { page: 0, size: fetchSize }
+        });
+        const pageData = normalizePaginatedResponse<unknown>(response.data);
+        return pageData.content.map((transaction) => normalizeTransaction(transaction));
+      })
+    );
+
+    const uniqueTransactions = new Map<string, Transaction>();
+    for (const row of perAccountPages.flat()) {
+      if (row.id) {
+        uniqueTransactions.set(row.id, row);
+      }
+    }
+
+    const merged = Array.from(uniqueTransactions.values()).sort((left, right) => {
+      return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+    });
+    const filtered = filterTransactions(merged, filters);
+
+    return paginateTransactions(filtered, page, size);
+  },
+  transfer: async (payload: TransferPayload, idempotencyKey: string): Promise<Transaction> => {
+    const response = await apiClient.post(
+      "/api/v1/transfers",
+      {
+        sourceAccountId: Number(payload.fromAccountId),
+        targetAccountId: Number(payload.toAccountId),
+        amount: payload.amount,
+        currency: payload.currency || "ZAR",
+        description: payload.description
+      },
+      {
+        headers: {
+          "Idempotency-Key": idempotencyKey
+        }
+      }
+    );
+
+    return normalizeTransaction(unwrapApiPayload<unknown>(response.data));
+  }
+};

@@ -21,10 +21,8 @@ type LoginFormState = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const router = useRouter();
   const loginMutation = useLoginMutation();
-  const { token, hydrated } = useAuthStore((state) => ({
-    token: state.token,
-    hydrated: state.hydrated
-  }));
+  const token = useAuthStore((state) => state.token);
+  const hydrated = useAuthStore((state) => state.hydrated);
 
   const [formState, setFormState] = useState<LoginFormState>({
     email: "",

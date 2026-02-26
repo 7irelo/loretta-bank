@@ -10,7 +10,7 @@ export interface Transaction {
   id: string;
   accountId?: string;
   sourceAccountId?: string;
-  destinationAccountId?: string;
+  targetAccountId?: string;
   amount: number;
   currency: string;
   type: TransactionType | string;

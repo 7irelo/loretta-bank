@@ -32,10 +32,8 @@ type RegisterFormState = z.infer<typeof registerSchema>;
 export default function RegisterPage() {
   const router = useRouter();
   const registerMutation = useRegisterMutation();
-  const { token, hydrated } = useAuthStore((state) => ({
-    token: state.token,
-    hydrated: state.hydrated
-  }));
+  const token = useAuthStore((state) => state.token);
+  const hydrated = useAuthStore((state) => state.hydrated);
 
   const [formState, setFormState] = useState<RegisterFormState>({
     fullName: "",
