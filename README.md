@@ -1,39 +1,51 @@
 # Loretta Bank - Microservices Banking System
 
-A production-grade banking backend built with Java 21, Spring Boot 3.4, and microservices architecture.
+A production-grade full-stack banking platform built with Java 21, Spring Boot 3.4, Next.js 14, and microservices architecture.
 
 ## Architecture
-
-```
-┌─────────────┐     ┌──────────────┐     ┌─────────────────┐
-│   Client     │────▶│  API Gateway │────▶│ Discovery (Eureka)│
-│  (React)     │     │   (8080)     │     │     (8761)       │
-└─────────────┘     └──────┬───────┘     └─────────────────┘
-                           │
-         ┌─────────────────┼─────────────────┐
-         │                 │                 │
-    ┌────▼────┐     ┌─────▼─────┐    ┌─────▼──────┐
-    │  Auth   │     │ Customer  │    │  Account   │
-    │ (8081)  │     │  (8082)   │    │  (8083)    │
-    └─────────┘     └───────────┘    └────────────┘
-         │                 │                 │
-    ┌────▼────────────────▼─────────────────▼──────┐
-    │              PostgreSQL (per-service DBs)     │
-    └──────────────────────────────────────────────┘
-
-    ┌─────────────┐  ┌──────────────┐  ┌────────────┐
-    │ Transaction  │  │ Notification │  │   Audit    │
-    │   (8084)     │  │   (8085)     │  │  (8086)    │
-    └──────┬───────┘  └──────┬───────┘  └─────┬──────┘
-           │                 │                │
-    ┌──────▼─────────────────▼────────────────▼────┐
-    │                  Apache Kafka                 │
-    └──────────────────────────────────────────────┘
-
-    ┌─────────────┐     ┌──────────┐
-    │  Reporting   │     │  Redis   │
-    │   (8087)     │     │ (cache)  │
-    └─────────────┘     └──────────┘
+```mermaid
+flowchart TD
+    User[Web/Mobile User] --> Frontend[Next.js Frontend]
+    Frontend --> Ingress[Ingress / NGINX]
+    Ingress -->|/| FrontendSvc[loretta-frontend]
+    Ingress -->|/api| Gateway[api-gateway]
+    Gateway --> Discovery[discovery-service (Eureka)]
+    Gateway --> Auth[auth-service]
+    Gateway --> Customer[customer-service]
+    Gateway --> Account[account-service]
+    Gateway --> Transaction[transaction-service]
+    Gateway --> Notification[notification-service]
+    Gateway --> Audit[audit-service]
+    Gateway --> Reporting[reporting-service]
+    Auth --> Redis[(Redis)]
+    Auth --> Postgres[(PostgreSQL)]
+    Customer --> Redis
+    Customer --> Postgres
+    Account --> Redis
+    Account --> Postgres
+    Transaction --> Postgres
+    Notification --> Postgres
+    Audit --> Postgres
+    Reporting --> Postgres
+    Customer --> Kafka[(Kafka)]
+    Account --> Kafka
+    Transaction --> Kafka
+    Notification --> Kafka
+    Audit --> Kafka
+    Account --> Customer
+    Transaction --> Account
+    Transaction --> Customer
+    Reporting --> Account
+    Reporting --> Customer
+    Reporting --> Transaction
+    Auth -. registers .-> Discovery
+    Customer -. registers .-> Discovery
+    Account -. registers .-> Discovery
+    Transaction -. registers .-> Discovery
+    Notification -. registers .-> Discovery
+    Audit -. registers .-> Discovery
+    Reporting -. registers .-> Discovery
+    Gateway -. registers .-> Discovery
 ```
 
 ## Services
@@ -329,3 +341,4 @@ mvn spotless:apply                # Fix formatting
 ## License
 
 MIT License - see [LICENSE](LICENSE)
+
