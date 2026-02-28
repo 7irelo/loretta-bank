@@ -46,6 +46,7 @@ spec:
           ports:
             - containerPort: 5432
               name: postgres
+          args: ["-c", "shared_buffers=32MB", "-c", "work_mem=2MB"]
           env:
             - name: POSTGRES_USER
               valueFrom:
@@ -62,6 +63,16 @@ spec:
                 secretKeyRef:
                   name: loretta-secrets
                   key: POSTGRES_DB
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           readinessProbe:
             exec:
               command:
@@ -78,7 +89,7 @@ spec:
                 - sh
                 - -c
                 - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
-            initialDelaySeconds: 30
+            initialDelaySeconds: 10
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 5
