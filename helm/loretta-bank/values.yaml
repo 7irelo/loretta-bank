@@ -1,0 +1,203 @@
+# Dev defaults — in-cluster infrastructure enabled
+createNamespace: false
+
+global:
+  imageRegistry: ""
+  imagePullPolicy: IfNotPresent
+  eureka:
+    url: http://eureka:eureka@discovery-service:8761/eureka/
+  redis:
+    host: redis
+    port: "6379"
+  kafka:
+    bootstrapServers: kafka:9092
+  postgres:
+    host: postgres
+    port: "5432"
+    username: loretta
+    password: loretta_secret
+  jwt:
+    secret: loretta-bank-jwt-secret-key-that-is-at-least-256-bits-long-for-hs256
+  serviceUrls:
+    customer: http://customer-service:8082
+    account: http://account-service:8083
+    transaction: http://transaction-service:8084
+  jvmOpts: "-Xmx192m -Xms96m -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=48m -Xss256k -XX:+UseSerialGC"
+  externalSecrets:
+    enabled: false
+  auth:
+    bootstrapEnabled: "true"
+    bootstrapAdminEmail: admin@lorettabank.co.za
+    bootstrapAdminPassword: AdminPass123!
+
+# --- Infrastructure subcharts ---
+config:
+  enabled: true
+
+postgres:
+  enabled: true
+
+redis:
+  enabled: true
+
+kafka:
+  enabled: true
+
+# --- Service subcharts ---
+discovery-service:
+  replicaCount: 1
+  image:
+    repository: loretta-discovery-service
+    tag: latest
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+api-gateway:
+  replicaCount: 1
+  image:
+    repository: loretta-api-gateway
+    tag: latest
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
+
+auth-service:
+  replicaCount: 1
+  image:
+    repository: loretta-auth-service
+    tag: latest
+  usesDb: true
+  dbName: loretta_auth
+  usesRedis: true
+  usesKafka: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
+
+customer-service:
+  replicaCount: 1
+  image:
+    repository: loretta-customer-service
+    tag: latest
+  usesDb: true
+  dbName: loretta_customer
+  usesRedis: true
+  usesKafka: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
+
+account-service:
+  replicaCount: 1
+  image:
+    repository: loretta-account-service
+    tag: latest
+  usesDb: true
+  dbName: loretta_account
+  usesRedis: true
+  usesKafka: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
+
+transaction-service:
+  replicaCount: 1
+  image:
+    repository: loretta-transaction-service
+    tag: latest
+  usesDb: true
+  dbName: loretta_transaction
+  usesRedis: false
+  usesKafka: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
+
+notification-service:
+  replicaCount: 1
+  image:
+    repository: loretta-notification-service
+    tag: latest
+  usesDb: true
+  dbName: loretta_notification
+  usesRedis: false
+  usesKafka: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
+
+audit-service:
+  replicaCount: 1
+  image:
+    repository: loretta-audit-service
+    tag: latest
+  usesDb: true
+  dbName: loretta_audit
+  usesRedis: false
+  usesKafka: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
+
+reporting-service:
+  replicaCount: 1
+  image:
+    repository: loretta-reporting-service
+    tag: latest
+  usesDb: true
+  dbName: loretta_reporting
+  usesRedis: false
+  usesKafka: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
+
+frontend:
+  replicaCount: 1
+  image:
+    repository: loretta-bank-client
+    tag: latest
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi

@@ -1,0 +1,75 @@
+################################################################################
+# General
+################################################################################
+
+project     = "loretta-bank"
+environment = "production"
+aws_region  = "af-south-1"
+
+tags = {
+  Owner = "platform-team"
+}
+
+################################################################################
+# VPC
+################################################################################
+
+vpc_cidr = "10.0.0.0/16"
+
+################################################################################
+# EKS
+################################################################################
+
+kubernetes_version  = "1.30"
+node_instance_types = ["t4g.large"]
+node_capacity_type  = "ON_DEMAND"
+node_min_size       = 2
+node_desired_size   = 3
+node_max_size       = 6
+node_disk_size      = 50
+
+# Lock this down to your office/VPN CIDR in real usage.
+cluster_endpoint_public_access       = true
+cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]
+
+################################################################################
+# RDS
+################################################################################
+
+rds_engine_version        = "16"
+rds_instance_class        = "db.t4g.medium"
+rds_allocated_storage     = 50
+rds_max_allocated_storage = 200
+rds_database_name         = "lorettabank"
+rds_master_username       = "dbadmin"
+rds_multi_az              = true
+rds_deletion_protection   = true
+
+################################################################################
+# ElastiCache (Redis)
+################################################################################
+
+redis_engine_version      = "7.1"
+redis_node_type           = "cache.t4g.medium"
+redis_num_cache_clusters  = 2
+
+################################################################################
+# MSK (Kafka)
+################################################################################
+
+kafka_version              = "3.6.0"
+msk_instance_type          = "kafka.t3.small"
+msk_number_of_broker_nodes = 3
+msk_ebs_volume_size        = 100
+
+################################################################################
+# ECR
+################################################################################
+
+ecr_max_image_count = 10
+
+################################################################################
+# ALB Controller
+################################################################################
+
+alb_controller_chart_version = "1.7.2"

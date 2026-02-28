@@ -70,3 +70,47 @@ jobs:
       - name: Build and test
         working-directory: server
         run: mvn verify -q -Dspring.profiles.active=test -Deureka.client.enabled=false
+
+  helm-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint Helm chart
+        run: helm lint helm/loretta-bank --values helm/loretta-bank/values.yaml
+
+  docker-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - { context: server, dockerfile: discovery-service/Dockerfile, image: discovery-service }
+          - { context: server, dockerfile: api-gateway/Dockerfile, image: api-gateway }
+          - { context: server, dockerfile: auth-service/Dockerfile, image: auth-service }
+          - { context: server, dockerfile: customer-service/Dockerfile, image: customer-service }
+          - { context: server, dockerfile: account-service/Dockerfile, image: account-service }
+          - { context: server, dockerfile: transaction-service/Dockerfile, image: transaction-service }
+          - { context: server, dockerfile: notification-service/Dockerfile, image: notification-service }
+          - { context: server, dockerfile: audit-service/Dockerfile, image: audit-service }
+          - { context: server, dockerfile: reporting-service/Dockerfile, image: reporting-service }
+          - { context: client, dockerfile: Dockerfile, image: frontend }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.service.context }}
+          file: ./${{ matrix.service.context }}/${{ matrix.service.dockerfile }}
+          push: false
+          tags: loretta-bank/${{ matrix.service.image }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

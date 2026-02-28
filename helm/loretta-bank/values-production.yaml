@@ -1,0 +1,154 @@
+# Production overrides — managed AWS services, no in-cluster infra
+global:
+  imageRegistry: "${AWS_ACCOUNT_ID}.dkr.ecr.af-south-1.amazonaws.com"
+  imagePullPolicy: Always
+  eureka:
+    url: http://eureka:eureka@discovery-service:8761/eureka/
+  redis:
+    host: loretta-bank-redis.xxxxx.af-south-1.cache.amazonaws.com
+    port: "6379"
+  kafka:
+    bootstrapServers: b-1.loretta-bank.xxxxx.kafka.af-south-1.amazonaws.com:9092
+  postgres:
+    host: loretta-bank-db.xxxxx.af-south-1.rds.amazonaws.com
+    port: "5432"
+    username: loretta
+    password: ""  # Injected via ExternalSecret
+  jwt:
+    secret: ""  # Injected via ExternalSecret
+  jvmOpts: "-Xmx384m -Xms192m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=64m -Xss512k -XX:+UseG1GC"
+  externalSecrets:
+    enabled: true
+    secretStoreRef: aws-secrets-manager
+  auth:
+    bootstrapEnabled: "false"
+    bootstrapAdminEmail: ""
+    bootstrapAdminPassword: ""
+
+# Disable in-cluster infrastructure
+postgres:
+  enabled: false
+
+redis:
+  enabled: false
+
+kafka:
+  enabled: false
+
+# Production resource tuning
+discovery-service:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+api-gateway:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 384Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+
+auth-service:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 384Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+
+customer-service:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 384Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+
+account-service:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 384Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+
+transaction-service:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 384Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+
+notification-service:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 384Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+
+audit-service:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 384Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+
+reporting-service:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 384Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+
+frontend:
+  replicaCount: 2
+  ingress:
+    enabled: true
+    className: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+    hosts:
+      - host: loretta-bank.example.com
+        paths:
+          - path: /api
+            pathType: Prefix
+            serviceName: api-gateway
+            servicePort: 8080
+          - path: /
+            pathType: Prefix
+            serviceName: loretta-frontend
+            servicePort: 80
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

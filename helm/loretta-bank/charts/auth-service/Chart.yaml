@@ -1,0 +1,5 @@
+apiVersion: v2
+name: auth-service
+description: Authentication service
+version: 0.1.0
+type: application

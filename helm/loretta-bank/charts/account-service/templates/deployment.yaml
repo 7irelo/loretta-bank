@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "account-service.fullname" . }}
+  labels:
+    {{- include "account-service.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "account-service.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "account-service.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: account-service
+          image: {{ include "account-service.image" . }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+          env:
+            {{- if .Values.usesDb }}
+            - name: DB_URL
+              value: jdbc:postgresql://{{ .Values.global.postgres.host }}:{{ .Values.global.postgres.port }}/{{ .Values.dbName }}
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: loretta-secrets
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: loretta-secrets
+                  key: DB_PASSWORD
+            {{- end }}
+            {{- if .Values.usesRedis }}
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: loretta-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: loretta-config
+                  key: REDIS_PORT
+            {{- end }}
+            {{- if .Values.usesKafka }}
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: loretta-config
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            {{- end }}
+            - name: EUREKA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: loretta-config
+                  key: EUREKA_URL
+            - name: CUSTOMER_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: loretta-config
+                  key: CUSTOMER_SERVICE_URL
+            - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
+              value: "true"
+            - name: JAVA_TOOL_OPTIONS
+              value: {{ .Values.global.jvmOpts | quote }}
+            {{- range .Values.extraEnv }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

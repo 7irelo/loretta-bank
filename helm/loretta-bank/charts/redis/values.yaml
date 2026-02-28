@@ -1,0 +1,10 @@
+image:
+  repository: redis
+  tag: 7.4-alpine
+resources:
+  requests:
+    cpu: 25m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi

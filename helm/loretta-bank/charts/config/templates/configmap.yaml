@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loretta-config
+  labels:
+    app.kubernetes.io/part-of: loretta-bank
+data:
+  REDIS_HOST: {{ .Values.global.redis.host | quote }}
+  REDIS_PORT: {{ .Values.global.redis.port | quote }}
+  KAFKA_BOOTSTRAP_SERVERS: {{ .Values.global.kafka.bootstrapServers | quote }}
+  EUREKA_URL: {{ .Values.global.eureka.url | quote }}
+  CUSTOMER_SERVICE_URL: {{ .Values.global.serviceUrls.customer | quote }}
+  ACCOUNT_SERVICE_URL: {{ .Values.global.serviceUrls.account | quote }}
+  TRANSACTION_SERVICE_URL: {{ .Values.global.serviceUrls.transaction | quote }}
+  AUTH_BOOTSTRAP_ENABLED: {{ .Values.global.auth.bootstrapEnabled | quote }}
+  AUTH_BOOTSTRAP_ADMIN_EMAIL: {{ .Values.global.auth.bootstrapAdminEmail | quote }}

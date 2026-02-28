@@ -1,0 +1,18 @@
+replicaCount: 1
+image:
+  repository: loretta-bank-client
+  tag: latest
+port: 3000
+servicePort: 80
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts: []

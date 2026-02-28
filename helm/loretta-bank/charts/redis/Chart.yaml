@@ -1,0 +1,5 @@
+apiVersion: v2
+name: redis
+description: In-cluster Redis (disabled in production)
+version: 0.1.0
+type: application

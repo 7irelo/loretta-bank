@@ -1,0 +1,17 @@
+replicaCount: 1
+image:
+  repository: loretta-notification-service
+  tag: latest
+port: 8085
+usesDb: true
+dbName: loretta_notification
+usesRedis: false
+usesKafka: true
+resources:
+  requests:
+    cpu: 50m
+    memory: 192Mi
+  limits:
+    cpu: 500m
+    memory: 384Mi
+extraEnv: []

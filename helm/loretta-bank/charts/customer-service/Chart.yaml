@@ -1,0 +1,5 @@
+apiVersion: v2
+name: customer-service
+description: Customer service
+version: 0.1.0
+type: application

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: kafka
+description: In-cluster Kafka with KRaft (disabled in production)
+version: 0.1.0
+type: application

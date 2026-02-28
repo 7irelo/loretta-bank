@@ -269,5 +269,18 @@
       customer-service:
         condition: service_started
 
+  frontend:
+    build:
+      context: ./client
+    container_name: loretta-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+    depends_on:
+      api-gateway:
+        condition: service_started
+
 volumes:
   postgres_data:

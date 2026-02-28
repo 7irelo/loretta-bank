@@ -1,0 +1,17 @@
+replicaCount: 1
+image:
+  repository: loretta-customer-service
+  tag: latest
+port: 8082
+usesDb: true
+dbName: loretta_customer
+usesRedis: true
+usesKafka: true
+resources:
+  requests:
+    cpu: 50m
+    memory: 192Mi
+  limits:
+    cpu: 500m
+    memory: 384Mi
+extraEnv: []

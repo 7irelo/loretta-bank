@@ -1,0 +1,13 @@
+replicaCount: 1
+image:
+  repository: loretta-discovery-service
+  tag: latest
+port: 8761
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+extraEnv: []

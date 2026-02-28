@@ -1,12 +1,13 @@
-# Loretta Bank - Microservices Banking System
+# Loretta Bank
 
-A production-grade full-stack banking platform built with Java 21, Spring Boot 3.4, Next.js 14, and microservices architecture.
+A full-stack banking platform built with Java 21, Spring Boot 3.4, and Next.js. Nine microservices handle authentication, customers, accounts, transactions, notifications, auditing, and reporting, all wired together with Eureka, Kafka, Redis, and PostgreSQL.
 
 ## Architecture
+
 ```mermaid
 flowchart TD;
     User["Web/Mobile User"] --> Frontend["Next.js Frontend"];
-    Frontend --> Ingress["Ingress / NGINX"];
+    Frontend --> Ingress["Ingress / ALB"];
     Ingress -->|/| FrontendSvc["loretta-frontend"];
     Ingress -->|/api| Gateway["api-gateway"];
     Gateway --> Discovery["discovery-service - Eureka"];
@@ -61,284 +62,215 @@ flowchart TD;
 | **notification-service** | 8085 | Event-driven notifications (email/SMS stubs) |
 | **audit-service** | 8086 | Immutable audit log from domain events |
 | **reporting-service** | 8087 | Account statements and reports |
+| **frontend** | 3000 | Next.js 14 web client |
 
 ## Tech Stack
 
-- **Java 21** + **Spring Boot 3.4**
-- **Spring Cloud** (Eureka, Gateway)
-- **PostgreSQL** (per-service databases)
-- **Apache Kafka** (domain events, outbox pattern)
-- **Redis** (caching, token blacklist, rate limiting)
-- **Flyway** (database migrations)
-- **MapStruct** + **Lombok** (mapping, boilerplate)
-- **SpringDoc OpenAPI** (Swagger UI per service)
-- **Micrometer/Prometheus** (metrics)
-- **Testcontainers** (integration tests)
-- **Spotless** (code formatting)
+**Backend:** Java 21, Spring Boot 3.4, Spring Cloud (Eureka, Gateway), Flyway, MapStruct, Lombok, SpringDoc OpenAPI, Micrometer/Prometheus, Testcontainers, Spotless
 
-## Key Patterns
+**Frontend:** Next.js 14, TypeScript, Tailwind CSS
 
-- **Outbox Pattern**: Events published via transactional outbox to avoid dual-write issues
-- **Saga Pattern**: Orchestration-based saga for inter-account transfers with compensation
-- **Double-Entry Ledger**: Every transaction creates matching debit/credit entries
-- **CQRS-lite**: Separate read/write paths where applicable
-- **JWT + Gateway Auth**: Gateway validates tokens and forwards user context headers
+**Infrastructure:** PostgreSQL 16 (per-service databases), Apache Kafka (domain events, outbox pattern), Redis (caching, token blacklist, rate limiting)
 
-## Prerequisites
-
-- Docker & Docker Compose
-- Java 21 (for local dev without Docker)
-- Maven 3.9+ (for local dev without Docker)
+**DevOps:** Docker Compose (local), Helm (Kubernetes), Terraform (AWS EKS/RDS/ElastiCache/MSK), GitHub Actions CI/CD
 
 ## Quick Start
 
-### With Docker Compose (recommended)
+### Docker Compose (recommended)
 
 ```bash
+cp .env.example .env        # review and customise if needed
 docker compose up --build
 ```
 
-This starts: PostgreSQL, Kafka, Redis, and all 9 microservices.
+| Endpoint | URL |
+|----------|-----|
+| Frontend | http://localhost:3000 |
+| API Gateway | http://localhost:8080 |
+| Eureka Dashboard | http://localhost:8761 |
 
-Wait for all services to register with Eureka (check http://localhost:8761).
+Default admin: `admin@lorettabank.co.za` / `AdminPass123!` (created on first boot by auth-service).
 
-Default bootstrap admin user (created by `auth-service` on first start):
-
-- Email: `admin@lorettabank.co.za`
-- Password: `AdminPass123!`
-
-You can change these via `AUTH_BOOTSTRAP_ADMIN_EMAIL` and `AUTH_BOOTSTRAP_ADMIN_PASSWORD`.
-
-### Local Development
-
-1. Start infrastructure:
-```bash
-docker compose up postgres kafka redis
-```
-
-2. Build and run:
-```bash
-cd server
-mvn clean install -DskipTests
-```
-
-3. Run services individually:
-```bash
-cd server/discovery-service && mvn spring-boot:run
-cd server/api-gateway && mvn spring-boot:run
-cd server/auth-service && mvn spring-boot:run
-# ... etc
-```
-
-## Frontend Container
-
-The Next.js frontend lives in `client/` and can be built as a container image:
+### Local Development (infrastructure only)
 
 ```bash
-docker build \
-  -f client/Dockerfile \
-  -t loretta-bank-client \
-  --build-arg NEXT_PUBLIC_API_URL=http://localhost:8080 \
-  client
+docker compose up postgres kafka redis    # start infra
+cd server && mvn clean install -DskipTests  # build all modules
+cd discovery-service && mvn spring-boot:run # start services one by one
 ```
 
-## Kubernetes Frontend
+## Deployment
 
-Frontend Kubernetes manifests are in `k8s/frontend/` (`Deployment`, `Service`, `Ingress`, and `kustomization.yaml`).
+### Environments
 
-For full build/push/apply steps, see [k8s/frontend/README.md](k8s/frontend/README.md).
+| Environment | Infra | Trigger |
+|-------------|-------|---------|
+| **Local** | Docker Compose (Postgres, Kafka, Redis in containers) | `docker compose up` |
+| **Staging** | EKS + in-cluster infra via Helm | Push to `main` |
+| **Production** | EKS + managed AWS (RDS, ElastiCache, MSK) | Manual `workflow_dispatch` |
 
-## Kubernetes Full Stack
+### Helm Charts
 
-Full Kubernetes manifests for frontend + backend + in-cluster infrastructure are in `k8s/all/`.
+The Kubernetes deployment uses an **umbrella Helm chart** with 14 subcharts:
 
-For image build/push and cluster deployment instructions, see [k8s/all/README.md](k8s/all/README.md).
+```
+helm/loretta-bank/
+  Chart.yaml                 # Declares all subchart dependencies
+  values.yaml                # Dev/staging defaults (in-cluster infra enabled)
+  values-production.yaml     # Production overrides (managed AWS services)
+  charts/
+    config/                  # Shared ConfigMap + Secret + ExternalSecret
+    postgres/ redis/ kafka/  # In-cluster infra (disabled in prod)
+    discovery-service/       # Each service: Deployment + Service
+    api-gateway/
+    auth-service/
+    ...
+    frontend/                # Deployment + Service + Ingress
+```
 
-For local Minikube deployment, run `scripts/deploy-minikube.ps1`.
+**How it works:**
+- `global.*` values (DB host, Kafka brokers, Redis host, JVM opts) flow down to all subcharts
+- Infrastructure subcharts toggle via `postgres.enabled`, `redis.enabled`, `kafka.enabled`
+- In production, these are `false` and services point to RDS/ElastiCache/MSK endpoints instead
+- Secrets are injected via `ExternalSecret` CRs (from AWS Secrets Manager) when `global.externalSecrets.enabled: true`
 
-## AWS EKS Terraform (Low Cost)
+```bash
+# Lint
+helm lint helm/loretta-bank
 
-Terraform for a cost-optimized AWS EKS cluster is in `terraform/aws-eks-cheap/`.
+# Dry-run
+helm install loretta-bank ./helm/loretta-bank --dry-run
 
-For provisioning steps and cost tradeoffs, see [terraform/aws-eks-cheap/README.md](terraform/aws-eks-cheap/README.md).
+# Deploy to staging (in-cluster infra)
+helm upgrade --install loretta-bank ./helm/loretta-bank \
+  --namespace loretta-bank --create-namespace
+
+# Deploy to production (managed AWS services)
+helm upgrade --install loretta-bank ./helm/loretta-bank \
+  --namespace loretta-bank --create-namespace \
+  --values helm/loretta-bank/values-production.yaml
+```
+
+### CI/CD Pipeline
+
+**CI** (`.github/workflows/ci.yml`) runs on every PR:
+1. Java build + test (`mvn verify` with Postgres/Redis service containers)
+2. Spotless formatting check + Checkstyle static analysis
+3. Helm chart linting
+4. Docker image build (matrix across all 10 images, no push)
+
+**CD** (`.github/workflows/cd.yml`) has two trigger modes:
+
+| Trigger | What happens |
+|---------|-------------|
+| **Push to `main`** | Builds and deploys **all** services to **staging** |
+| **Manual dispatch** | Pick **environment** (staging/production) and toggle **per-service feature flags** |
+
+The manual dispatch lets you deploy individual services. For example, to push only `auth-service` and `api-gateway` to production, run the workflow manually and toggle just those two on.
+
+### AWS Infrastructure (Terraform)
+
+**Production** (`terraform/aws-eks-production/`):
+- VPC: 3 AZs, public + private subnets, NAT gateway
+- EKS: v1.30, Graviton t4g.large ON_DEMAND, 2-6 node autoscaling
+- RDS: PostgreSQL 16, multi-AZ, encrypted, managed passwords
+- ElastiCache: Redis 7.1, replication group with failover
+- MSK: Kafka 3.6 KRaft (no ZooKeeper), 3 brokers
+- ECR: 10 repos with lifecycle policies
+- ALB Controller + External Secrets Operator via IRSA
+
+```bash
+cd terraform/aws-eks-production
+cp terraform.tfvars.example terraform.tfvars
+terraform init && terraform plan
+```
+
+**Dev** (`terraform/aws-eks-cheap/`) - Cost-optimized Spot cluster for experimentation.
 
 ## Sample API Flow
 
 All requests go through the gateway at `http://localhost:8080`.
 
-### 1. Register a User
-
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/register \
+# 1. Register
+curl -s -X POST http://localhost:8080/api/v1/auth/register \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "john@lorettabank.co.za",
-    "password": "SecurePass123!",
-    "firstName": "John",
-    "lastName": "Doe"
-  }'
-```
+  -d '{"email":"john@lorettabank.co.za","password":"SecurePass123!","firstName":"John","lastName":"Doe"}'
 
-### 2. Login
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
+# 2. Login (save the accessToken)
+curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{
-    "email": "john@lorettabank.co.za",
-    "password": "SecurePass123!"
-  }'
-```
+  -d '{"email":"john@lorettabank.co.za","password":"SecurePass123!"}'
 
-Save the `accessToken` from the response.
+export TOKEN="<accessToken>"
 
-### 3. Create Customer Profile
+# 3. Create customer profile
+curl -s -X POST http://localhost:8080/api/v1/customers \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"userId":1,"firstName":"John","lastName":"Doe","email":"john@lorettabank.co.za","phoneNumber":"+27821234567","idNumber":"9501015800089","dateOfBirth":"1995-01-01","address":"123 Main Street, Cape Town, 8001"}'
 
-```bash
-export TOKEN="<your-access-token>"
+# 4. Open account
+curl -s -X POST http://localhost:8080/api/v1/accounts \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"customerId":1,"accountType":"CHECKING","currency":"ZAR","initialDeposit":10000.00}'
 
-curl -X POST http://localhost:8080/api/v1/customers \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "userId": 1,
-    "firstName": "John",
-    "lastName": "Doe",
-    "email": "john@lorettabank.co.za",
-    "phoneNumber": "+27821234567",
-    "idNumber": "9501015800089",
-    "dateOfBirth": "1995-01-01",
-    "address": "123 Main Street, Cape Town, 8001"
-  }'
-```
-
-### 4. Open an Account
-
-```bash
-curl -X POST http://localhost:8080/api/v1/accounts \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "customerId": 1,
-    "accountType": "CHECKING",
-    "currency": "ZAR",
-    "initialDeposit": 10000.00
-  }'
-```
-
-### 5. Deposit Money
-
-```bash
-curl -X POST http://localhost:8080/api/v1/accounts/1/deposit \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
+# 5. Deposit
+curl -s -X POST http://localhost:8080/api/v1/accounts/1/deposit \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -H "Idempotency-Key: dep-$(uuidgen)" \
-  -d '{
-    "amount": 5000.00,
-    "reference": "Salary deposit"
-  }'
-```
+  -d '{"amount":5000.00,"reference":"Salary deposit"}'
 
-### 6. Transfer Between Accounts
-
-```bash
-curl -X POST http://localhost:8080/api/v1/transfers \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
+# 6. Transfer
+curl -s -X POST http://localhost:8080/api/v1/transfers \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -H "Idempotency-Key: xfer-$(uuidgen)" \
-  -d '{
-    "sourceAccountId": 1,
-    "targetAccountId": 2,
-    "amount": 2000.00,
-    "currency": "ZAR",
-    "description": "Savings transfer"
-  }'
-```
+  -d '{"sourceAccountId":1,"targetAccountId":2,"amount":2000.00,"currency":"ZAR","description":"Savings transfer"}'
 
-### 7. View Transactions
+# 7. View transactions
+curl -s http://localhost:8080/api/v1/transactions/account/1 -H "Authorization: Bearer $TOKEN"
 
-```bash
-curl http://localhost:8080/api/v1/transactions/account/1 \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-### 8. Generate Statement
-
-```bash
-curl -X POST http://localhost:8080/api/v1/reports/statements \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "accountId": 1,
-    "periodFrom": "2025-01-01T00:00:00",
-    "periodTo": "2025-12-31T23:59:59"
-  }'
-```
-
-### 9. View Audit Trail (Admin)
-
-```bash
-curl http://localhost:8080/api/v1/audit?page=0&size=20 \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
-```
-
-### 10. Promote a user role (Admin)
-
-```bash
-curl -X PUT http://localhost:8080/api/v1/auth/users/2/role \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"role":"SUPPORT"}'
+# 8. Generate statement
+curl -s -X POST http://localhost:8080/api/v1/reports/statements \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"accountId":1,"periodFrom":"2025-01-01T00:00:00","periodTo":"2025-12-31T23:59:59"}'
 ```
 
 ## Swagger UI
 
-Each service exposes OpenAPI docs:
-- Auth: http://localhost:8081/swagger-ui.html
-- Customer: http://localhost:8082/swagger-ui.html
-- Account: http://localhost:8083/swagger-ui.html
-- Transaction: http://localhost:8084/swagger-ui.html
-- Notification: http://localhost:8085/swagger-ui.html
-- Audit: http://localhost:8086/swagger-ui.html
-- Reporting: http://localhost:8087/swagger-ui.html
+Each service exposes OpenAPI docs at `http://localhost:<port>/swagger-ui.html`.
 
-## Roles & Authorization
+## Roles
 
-| Role | Capabilities |
-|------|-------------|
-| **CUSTOMER** | Own profile, own accounts, own transactions, own statements |
-| **SUPPORT** | Read-only access to customer data, accounts, audit logs |
-| **ADMIN** | Full access: manage users, KYC, freeze/close accounts, audit |
+| Role | Access |
+|------|--------|
+| **CUSTOMER** | Own profile, accounts, transactions, statements |
+| **SUPPORT** | Read-only customer data, accounts, audit logs |
+| **ADMIN** | Full access: user management, KYC, account ops, audit |
 
 ## Testing
 
 ```bash
 cd server
-mvn test                          # Unit tests
-mvn verify                        # Unit + integration tests
-mvn spotless:check                # Check formatting
-mvn spotless:apply                # Fix formatting
+mvn test              # unit tests
+mvn verify            # unit + integration (Testcontainers)
+mvn spotless:check    # formatting
+mvn spotless:apply    # auto-fix formatting
 ```
-
-## Monitoring
-
-- **Health checks**: `GET /actuator/health` on each service
-- **Metrics**: `GET /actuator/prometheus` (Prometheus format)
-- **Eureka dashboard**: http://localhost:8761
 
 ## Design Decisions
 
-1. **Outbox Pattern over direct Kafka publish**: Ensures atomicity between DB writes and event publishing. A scheduled poller reads unpublished events and sends them to Kafka.
+1. **Outbox Pattern** - Events are written to an outbox table in the same transaction as the domain write, then polled and published to Kafka. This avoids dual-write inconsistencies.
 
-2. **Orchestration Saga for transfers**: The transaction-service orchestrates the transfer saga (debit source -> credit target) with compensation on failure, rather than choreography, for easier reasoning and debugging.
+2. **Orchestration Saga** - The transaction-service orchestrates transfers (debit source, credit target) with compensation on failure, rather than choreography.
 
-3. **Gateway-based auth**: The API gateway validates JWTs and forwards user context (X-User-Id, X-User-Roles) to downstream services. Services trust these headers since they're only reachable through the gateway.
+3. **Gateway Auth** - The API gateway validates JWTs and forwards `X-User-Id` and `X-User-Roles` headers. Downstream services trust these headers since they're only reachable through the gateway.
 
-4. **BigDecimal with scale 4**: All monetary values use `NUMERIC(19,4)` for precision. Currency defaults to ZAR but is extensible.
+4. **BigDecimal(19,4)** - All monetary values use `NUMERIC(19,4)` for precision. Currency defaults to ZAR.
 
-5. **Separate databases per service**: Each service has its own PostgreSQL database for data isolation, following microservices best practices.
+5. **Database per Service** - Each microservice owns its PostgreSQL database for data isolation.
+
+6. **Feature Flag Deploys** - CD pipeline supports per-service deployment flags via `workflow_dispatch`, allowing selective rollouts to staging or production.
 
 ## License
 
 MIT License - see [LICENSE](LICENSE)
-

@@ -1,0 +1,10 @@
+image:
+  repository: postgres
+  tag: 16-alpine
+resources:
+  requests:
+    cpu: 50m
+    memory: 192Mi
+  limits:
+    cpu: 500m
+    memory: 384Mi

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: discovery-service
+description: Eureka discovery service
+version: 0.1.0
+type: application
