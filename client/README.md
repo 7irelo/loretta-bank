@@ -72,14 +72,21 @@ npm run start:3001
 Build the image:
 
 ```bash
-docker build -t loretta-bank-client .
+docker build \
+  -t loretta-bank-client \
+  --build-arg NEXT_PUBLIC_API_URL=http://host.docker.internal:8080 \
+  .
 ```
 
 Run container:
 
 ```bash
-docker run --rm -p 3000:3000 --env NEXT_PUBLIC_API_URL=http://host.docker.internal:8080 loretta-bank-client
+docker run --rm -p 3000:3000 loretta-bank-client
 ```
+
+`NEXT_PUBLIC_*` values are compiled into the app at build time, so set `NEXT_PUBLIC_API_URL` in the `docker build` step.
+
+For Kubernetes deployment, see [`k8s/frontend/README.md`](../k8s/frontend/README.md).
 
 ## API Compatibility
 

@@ -118,6 +118,38 @@ cd server/auth-service && mvn spring-boot:run
 # ... etc
 ```
 
+## Frontend Container
+
+The Next.js frontend lives in `client/` and can be built as a container image:
+
+```bash
+docker build \
+  -f client/Dockerfile \
+  -t loretta-bank-client \
+  --build-arg NEXT_PUBLIC_API_URL=http://localhost:8080 \
+  client
+```
+
+## Kubernetes Frontend
+
+Frontend Kubernetes manifests are in `k8s/frontend/` (`Deployment`, `Service`, `Ingress`, and `kustomization.yaml`).
+
+For full build/push/apply steps, see [k8s/frontend/README.md](k8s/frontend/README.md).
+
+## Kubernetes Full Stack
+
+Full Kubernetes manifests for frontend + backend + in-cluster infrastructure are in `k8s/all/`.
+
+For image build/push and cluster deployment instructions, see [k8s/all/README.md](k8s/all/README.md).
+
+For local Minikube deployment, run `scripts/deploy-minikube.ps1`.
+
+## AWS EKS Terraform (Low Cost)
+
+Terraform for a cost-optimized AWS EKS cluster is in `terraform/aws-eks-cheap/`.
+
+For provisioning steps and cost tradeoffs, see [terraform/aws-eks-cheap/README.md](terraform/aws-eks-cheap/README.md).
+
 ## Sample API Flow
 
 All requests go through the gateway at `http://localhost:8080`.

@@ -1,0 +1,18 @@
+project_name        = "loretta-bank"
+environment         = "dev"
+aws_region          = "us-east-1"
+kubernetes_version  = "1.30"
+
+# Keep this as SPOT for lowest compute cost.
+node_capacity_type  = "SPOT"
+node_instance_types = ["t4g.medium"]
+node_min_size       = 1
+node_desired_size   = 1
+node_max_size       = 2
+
+# Lock this down to your office/home IP in real usage.
+cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]
+
+tags = {
+  Owner = "your-name"
+}
