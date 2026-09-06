@@ -2,6 +2,12 @@
 
 A full-stack banking platform built with Java 21, Spring Boot 3.4, and Next.js. Nine microservices handle authentication, customers, accounts, transactions, notifications, auditing, and reporting, all wired together with Eureka, Kafka, Redis, and PostgreSQL.
 
+## Screenshots
+
+![Loretta Bank web client - sign-in, dashboard, accounts, transfers, transactions, cards, statements, profile and settings](docs/screenshots/loretta-bank-ui.png)
+
+The Next.js client covering authentication, the account dashboard with spending breakdown, account and card management, transfers, transaction history with search and export, downloadable statements, profile, and security settings.
+
 ## Architecture
 
 ```mermaid
