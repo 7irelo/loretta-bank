@@ -32,11 +32,11 @@ resource "aws_secretsmanager_secret" "bootstrap_credentials" {
 resource "aws_secretsmanager_secret_version" "bootstrap_credentials" {
   secret_id = aws_secretsmanager_secret.bootstrap_credentials.id
   secret_string = jsonencode({
-    redis-password        = "REPLACE_ME"
-    kafka-bootstrap-url   = "REPLACE_ME"
-    eureka-default-zone   = "REPLACE_ME"
-    spring-mail-username  = "REPLACE_ME"
-    spring-mail-password  = "REPLACE_ME"
+    redis-password       = "REPLACE_ME"
+    kafka-bootstrap-url  = "REPLACE_ME"
+    eureka-default-zone  = "REPLACE_ME"
+    spring-mail-username = "REPLACE_ME"
+    spring-mail-password = "REPLACE_ME"
   })
 
   lifecycle {

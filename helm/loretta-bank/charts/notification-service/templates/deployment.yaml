@@ -63,6 +63,11 @@ spec:
                 configMapKeyRef:
                   name: loretta-config
                   key: KAFKA_BOOTSTRAP_SERVERS
+            - name: KAFKA_SECURITY_PROTOCOL
+              valueFrom:
+                configMapKeyRef:
+                  name: loretta-config
+                  key: KAFKA_SECURITY_PROTOCOL
             {{- end }}
             - name: EUREKA_URL
               valueFrom:

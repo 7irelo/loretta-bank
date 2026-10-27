@@ -11,7 +11,8 @@ node_desired_size   = 1
 node_max_size       = 2
 
 # Lock this down to your office/home IP in real usage.
-cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]
+# Required: your own public IP(s). Find yours with: curl -s https://checkip.amazonaws.com
+cluster_endpoint_public_access_cidrs = ["203.0.113.10/32"]
 
 tags = {
   Owner = "your-name"

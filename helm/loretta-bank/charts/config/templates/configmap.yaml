@@ -15,3 +15,4 @@ data:
   AUTH_BOOTSTRAP_ENABLED: {{ .Values.global.auth.bootstrapEnabled | quote }}
   AUTH_BOOTSTRAP_ADMIN_EMAIL: {{ .Values.global.auth.bootstrapAdminEmail | quote }}
   AI_SERVICE_URL: "http://{{ .Release.Name }}-ai-service:8090"
+  KAFKA_SECURITY_PROTOCOL: {{ .Values.global.kafka.securityProtocol | default "PLAINTEXT" | quote }}

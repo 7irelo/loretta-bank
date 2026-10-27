@@ -90,13 +90,13 @@ variable "node_disk_size" {
 variable "cluster_endpoint_public_access" {
   description = "Whether the EKS API endpoint is publicly accessible."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "cluster_endpoint_public_access_cidrs" {
   description = "CIDR blocks allowed to access the EKS API endpoint."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
 }
 
 ################################################################################

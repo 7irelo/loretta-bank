@@ -16,7 +16,7 @@ variable "repository_names" {
 variable "image_tag_mutability" {
   description = "Tag mutability setting for the repositories."
   type        = string
-  default     = "MUTABLE"
+  default     = "IMMUTABLE"
 }
 
 variable "max_image_count" {

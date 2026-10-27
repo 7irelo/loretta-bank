@@ -75,9 +75,13 @@ variable "node_max_size" {
 }
 
 variable "cluster_endpoint_public_access_cidrs" {
-  description = "CIDR ranges allowed to reach the EKS API endpoint. Restrict this for better security."
+  description = "Your own egress CIDRs (e.g. [\"203.0.113.10/32\"]) allowed to reach the EKS API endpoint."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+
+  validation {
+    condition     = length(var.cluster_endpoint_public_access_cidrs) > 0 && !contains(var.cluster_endpoint_public_access_cidrs, "0.0.0.0/0")
+    error_message = "List your own IP ranges; exposing the EKS API to 0.0.0.0/0 is not allowed."
+  }
 }
 
 variable "tags" {

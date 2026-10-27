@@ -72,6 +72,14 @@ resource "aws_security_group_rule" "cluster_egress" {
 # EKS Cluster
 ################################################################################
 
+# Envelope-encrypts Kubernetes Secrets (DB passwords, JWT keys) in etcd.
+resource "aws_kms_key" "eks_secrets" {
+  description             = "${local.cluster_name} Kubernetes secrets encryption"
+  enable_key_rotation     = true
+  deletion_window_in_days = 30
+  tags                    = var.tags
+}
+
 resource "aws_eks_cluster" "this" {
   name     = local.cluster_name
   version  = var.cluster_version
@@ -83,6 +91,13 @@ resource "aws_eks_cluster" "this" {
     endpoint_public_access  = var.cluster_endpoint_public_access
     endpoint_private_access = true
     public_access_cidrs     = var.cluster_endpoint_public_access_cidrs
+  }
+
+  encryption_config {
+    resources = ["secrets"]
+    provider {
+      key_arn = aws_kms_key.eks_secrets.arn
+    }
   }
 
   access_config {

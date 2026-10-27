@@ -8,7 +8,9 @@ global:
     host: loretta-bank-redis.xxxxx.af-south-1.cache.amazonaws.com
     port: "6379"
   kafka:
-    bootstrapServers: b-1.loretta-bank.xxxxx.kafka.af-south-1.amazonaws.com:9092
+    # TLS listener (port 9094); MSK rejects plaintext clients.
+    bootstrapServers: b-1.loretta-bank.xxxxx.kafka.af-south-1.amazonaws.com:9094
+    securityProtocol: SSL
   postgres:
     host: loretta-bank-db.xxxxx.af-south-1.rds.amazonaws.com
     port: "5432"

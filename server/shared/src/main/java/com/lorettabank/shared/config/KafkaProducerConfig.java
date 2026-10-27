@@ -19,10 +19,16 @@ public class KafkaProducerConfig {
     @Value("${spring.kafka.bootstrap-servers:localhost:9092}")
     private String bootstrapServers;
 
+    @Value("${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}")
+    private String securityProtocol;
+
     @Bean
     public ProducerFactory<String, DomainEvent> producerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        // TLS to managed Kafka in production (SSL); plaintext only inside the local compose
+        // network.
+        props.put("security.protocol", securityProtocol);
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
         props.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, true);

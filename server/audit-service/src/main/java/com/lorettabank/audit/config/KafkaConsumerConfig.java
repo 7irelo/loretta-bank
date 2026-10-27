@@ -24,10 +24,16 @@ public class KafkaConsumerConfig {
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
+    @Value("${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}")
+    private String securityProtocol;
+
     @Bean
     public ConsumerFactory<String, DomainEvent> consumerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        // TLS to managed Kafka in production (SSL); plaintext only inside the local compose
+        // network.
+        props.put("security.protocol", securityProtocol);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "audit-service");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);

@@ -30,13 +30,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: fs
-          scanners: vuln,misconfig,secret
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: "1"
+        run: >
+          docker run --rm -v "$PWD":/repo -w /repo aquasec/trivy:0.57.1 fs
+          --scanners vuln,misconfig,secret --severity CRITICAL,HIGH --ignore-unfixed
+          --ignorefile .trivyignore.yaml --skip-dirs ai/.venv --skip-dirs client/node_modules
+          --exit-code 1 .
 
   codeql:
     name: CodeQL

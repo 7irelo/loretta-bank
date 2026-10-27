@@ -29,8 +29,9 @@ node_max_size       = 6
 node_disk_size      = 50
 
 # Lock this down to your office/VPN CIDR in real usage.
-cluster_endpoint_public_access       = true
-cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]
+# Keep the API private; if you must expose it, list your VPN/office egress CIDRs only.
+cluster_endpoint_public_access       = false
+cluster_endpoint_public_access_cidrs = []
 
 ################################################################################
 # RDS

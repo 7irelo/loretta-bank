@@ -65,15 +65,20 @@ variable "node_disk_size" {
 }
 
 variable "cluster_endpoint_public_access" {
-  description = "Whether the EKS API endpoint is publicly accessible."
+  description = "Whether the EKS API endpoint is publicly accessible. Prefer false and reach it via VPN or a bastion."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "cluster_endpoint_public_access_cidrs" {
-  description = "CIDR blocks allowed to access the EKS API endpoint."
+  description = "CIDR blocks allowed to reach a public EKS API endpoint (office or VPN egress IPs)."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
+
+  validation {
+    condition     = !contains(var.cluster_endpoint_public_access_cidrs, "0.0.0.0/0")
+    error_message = "Do not expose the EKS API to the whole internet; list specific CIDRs."
+  }
 }
 
 variable "tags" {

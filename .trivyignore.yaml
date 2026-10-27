@@ -1,0 +1,17 @@
+# Accepted findings, each with a reason. Everything else fails the Security workflow.
+misconfigurations:
+  - id: AVD-AWS-0104
+    statement: >-
+      Unrestricted egress on node and broker security groups. Nodes must reach ECR, AWS APIs
+      and model providers; egress is constrained by Kubernetes NetworkPolicy and NAT instead.
+  - id: AVD-AWS-0164
+    statement: >-
+      Public subnets map public IPs by design: production uses them only for the internet-facing
+      load balancer; the dev cluster (terraform/aws-eks-cheap) runs nodes there to avoid NAT cost.
+  - id: AVD-AWS-0040
+    paths:
+      - "terraform/aws-eks-cheap/**"
+      - "git::https:/github.com/terraform-aws-modules/terraform-aws-eks?ref=*/main.tf"
+    statement: >-
+      The dev cluster has no VPN, so its API endpoint is public but restricted to explicit
+      CIDRs (0.0.0.0/0 is rejected by variable validation). Production defaults to private.

@@ -1,3 +1,10 @@
+resource "aws_kms_key" "msk" {
+  description             = "${var.project}-${var.environment} MSK encryption at rest"
+  enable_key_rotation     = true
+  deletion_window_in_days = 30
+  tags                    = var.tags
+}
+
 ################################################################################
 # Security Group
 ################################################################################
@@ -77,9 +84,9 @@ resource "aws_security_group_rule" "msk_egress" {
 ################################################################################
 
 resource "aws_msk_configuration" "this" {
-  name              = "${var.project}-${var.environment}-kafka-config"
-  kafka_versions    = [var.kafka_version]
-  description       = "MSK configuration for ${var.project} ${var.environment}"
+  name           = "${var.project}-${var.environment}-kafka-config"
+  kafka_versions = [var.kafka_version]
+  description    = "MSK configuration for ${var.project} ${var.environment}"
 
   server_properties = <<-PROPERTIES
     auto.create.topics.enable=true
@@ -96,8 +103,6 @@ resource "aws_msk_configuration" "this" {
     unclean.leader.election.enable=false
     log.retention.hours=168
   PROPERTIES
-
-  tags = var.tags
 }
 
 ################################################################################
@@ -139,8 +144,9 @@ resource "aws_msk_cluster" "this" {
   }
 
   encryption_info {
+    encryption_at_rest_kms_key_arn = aws_kms_key.msk.arn
     encryption_in_transit {
-      client_broker = "TLS_PLAINTEXT"
+      client_broker = "TLS"
       in_cluster    = true
     }
   }
