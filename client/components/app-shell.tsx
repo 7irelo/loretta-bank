@@ -5,25 +5,26 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import {
   ArrowLeftRight,
+  Bell,
+  FileText,
   LayoutDashboard,
   LogOut,
   Menu,
   ReceiptText,
+  Settings,
   ShieldCheck,
+  Sparkles,
   Wallet,
   X
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { isRoleAllowed } from "@/lib/auth";
+import { authApi } from "@/lib/api";
+import { useCustomer, useUnreadCount } from "@/lib/hooks";
 import { cn, getInitials } from "@/lib/utils";
 import { useAuthStore } from "@/store/auth-store";
-import type { UserRole } from "@/types/auth";
-
-interface AppShellProps {
-  children: ReactNode;
-}
+import type { UserRole } from "@/types/api";
 
 interface NavigationItem {
   href: string;
@@ -32,175 +33,145 @@ interface NavigationItem {
   roles: UserRole[];
 }
 
-const navigationItems: NavigationItem[] = [
-  {
-    href: "/dashboard",
-    label: "Dashboard",
-    icon: LayoutDashboard,
-    roles: ["ADMIN", "CUSTOMER", "SUPPORT"]
-  },
-  {
-    href: "/accounts",
-    label: "Accounts",
-    icon: Wallet,
-    roles: ["ADMIN", "CUSTOMER", "SUPPORT"]
-  },
-  {
-    href: "/transfer",
-    label: "Transfers",
-    icon: ArrowLeftRight,
-    roles: ["ADMIN", "CUSTOMER", "SUPPORT"]
-  },
-  {
-    href: "/transactions",
-    label: "Transactions",
-    icon: ReceiptText,
-    roles: ["ADMIN", "CUSTOMER", "SUPPORT"]
-  },
-  {
-    href: "/admin",
-    label: "Admin",
-    icon: ShieldCheck,
-    roles: ["ADMIN", "SUPPORT"]
-  }
+const navigation: NavigationItem[] = [
+  { href: "/dashboard", label: "Home", icon: LayoutDashboard, roles: ["CUSTOMER"] },
+  { href: "/accounts", label: "Accounts", icon: Wallet, roles: ["CUSTOMER"] },
+  { href: "/transfer", label: "Pay & transfer", icon: ArrowLeftRight, roles: ["CUSTOMER"] },
+  { href: "/transactions", label: "Transactions", icon: ReceiptText, roles: ["CUSTOMER"] },
+  { href: "/statements", label: "Statements", icon: FileText, roles: ["CUSTOMER"] },
+  { href: "/assistant", label: "Assistant", icon: Sparkles, roles: ["CUSTOMER"] },
+  { href: "/notifications", label: "Notifications", icon: Bell, roles: ["CUSTOMER"] },
+  { href: "/admin", label: "Back office", icon: ShieldCheck, roles: ["ADMIN", "SUPPORT"] },
+  { href: "/settings", label: "Settings", icon: Settings, roles: ["CUSTOMER", "ADMIN", "SUPPORT"] }
 ];
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const token = useAuthStore((state) => state.token);
-  const user = useAuthStore((state) => state.user);
-  const hydrated = useAuthStore((state) => state.hydrated);
-  const clearSession = useAuthStore((state) => state.clearSession);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const user = useAuthStore((s) => s.user);
+  const hydrated = useAuthStore((s) => s.hydrated);
+  const setUser = useAuthStore((s) => s.setUser);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const isCustomer = user?.role === "CUSTOMER";
+  const customer = useCustomer();
+  const unread = useUnreadCount();
 
   useEffect(() => {
-    if (hydrated && !token) {
+    if (hydrated && !user) {
       router.replace("/login");
     }
-  }, [hydrated, router, token]);
+  }, [hydrated, router, user]);
 
   useEffect(() => {
-    setIsMobileOpen(false);
-  }, [pathname]);
+    if (isCustomer && customer.isSuccess && customer.data === null && pathname !== "/onboarding") {
+      router.replace("/onboarding");
+    }
+  }, [customer.data, customer.isSuccess, isCustomer, pathname, router]);
 
-  const allowedItems = useMemo(() => {
-    return navigationItems.filter((item) => isRoleAllowed(user?.role, item.roles));
-  }, [user?.role]);
+  useEffect(() => setMobileOpen(false), [pathname]);
 
-  if (!hydrated) {
+  const items = useMemo(
+    () => navigation.filter((item) => user && item.roles.includes(user.role)),
+    [user]
+  );
+
+  if (!hydrated || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+      <div className="flex min-h-screen items-center justify-center" aria-busy="true">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
       </div>
     );
   }
 
-  if (!token || !user) {
-    return null;
-  }
-
-  const logout = () => {
-    clearSession();
+  const signOut = async () => {
+    await authApi.logout().catch(() => null);
+    setUser(null);
     router.replace("/login");
   };
 
+  const unreadCount = unread.data?.unread ?? 0;
+
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[260px_1fr]">
+    <div className="min-h-screen md:grid md:grid-cols-[248px_1fr]">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-30 w-64 border-r border-line bg-white/95 p-4 backdrop-blur transition-transform md:static md:translate-x-0",
-          isMobileOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed inset-y-0 left-0 z-30 w-64 border-r border-line bg-white p-4 transition-transform md:static md:w-auto md:translate-x-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
+        aria-label="Main navigation"
       >
-        <div className="mb-6 flex items-center justify-between md:justify-start">
-          <div className="flex items-center gap-2">
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-sm font-bold text-white">
+        <div className="mb-6 flex items-center justify-between">
+          <Link href={isCustomer ? "/dashboard" : "/admin"} className="flex items-center gap-2">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-sm font-bold text-white">
               LB
-            </div>
-            <div>
-              <p className="font-display text-sm font-semibold text-ink">Loretta Bank</p>
-              <p className="text-xs text-slate">Digital Banking Portal</p>
-            </div>
-          </div>
-          <button className="md:hidden" onClick={() => setIsMobileOpen(false)} aria-label="Close menu">
+            </span>
+            <span className="font-display text-sm font-semibold text-ink">Loretta Bank</span>
+          </Link>
+          <button className="md:hidden" onClick={() => setMobileOpen(false)} aria-label="Close menu">
             <X className="h-5 w-5 text-slate" />
           </button>
         </div>
-
         <nav className="space-y-1">
-          {allowedItems.map((item) => {
+          {items.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
-                  active
-                    ? "bg-primary text-white"
-                    : "text-slate hover:bg-surface hover:text-ink"
+                  active ? "bg-primary text-white" : "text-slate hover:bg-surface hover:text-ink"
                 )}
               >
                 <Icon className="h-4 w-4" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.href === "/notifications" && unreadCount > 0 ? (
+                  <span className="rounded-full bg-danger px-1.5 text-xs font-semibold text-white">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                ) : null}
               </Link>
             );
           })}
         </nav>
-
-        <div className="mt-8 rounded-2xl border border-line bg-surface p-3">
-          <p className="text-xs uppercase tracking-wide text-muted">Secure Session</p>
-          <p className="mt-1 text-sm text-slate">Tokens are rotated by the gateway and auto-cleared on unauthorized access.</p>
-        </div>
       </aside>
 
-      {isMobileOpen ? (
+      {mobileOpen ? (
         <button
-          onClick={() => setIsMobileOpen(false)}
+          onClick={() => setMobileOpen(false)}
           className="fixed inset-0 z-20 bg-ink/35 md:hidden"
-          aria-label="Close navigation overlay"
+          aria-label="Close navigation"
         />
       ) : null}
 
-      <div className="relative z-10 flex min-h-screen flex-col">
+      <div className="flex min-h-screen min-w-0 flex-col">
         <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-line bg-white/90 px-4 backdrop-blur md:px-8">
-          <div className="flex items-center gap-2">
-            <button
-              className="rounded-lg border border-line bg-white p-2 md:hidden"
-              onClick={() => setIsMobileOpen(true)}
-              aria-label="Open menu"
-            >
-              <Menu className="h-5 w-5 text-slate" />
-            </button>
-            <span className="hidden text-sm text-slate md:inline-flex">Core Banking Workspace</span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Badge variant={user.role === "ADMIN" ? "success" : "soft"}>{user.role}</Badge>
+          <button
+            className="rounded-lg border border-line bg-white p-2 md:hidden"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5 text-slate" />
+          </button>
+          <div className="ml-auto flex items-center gap-3">
+            {user.role !== "CUSTOMER" ? <Badge variant="success">{user.role}</Badge> : null}
             <div className="hidden text-right md:block">
               <p className="text-sm font-semibold text-ink">{user.fullName}</p>
               <p className="text-xs text-slate">{user.email}</p>
             </div>
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
               {getInitials(user.fullName)}
-            </div>
-            <Button size="sm" variant="secondary" className="gap-2" onClick={logout}>
+            </span>
+            <Button size="sm" variant="secondary" className="gap-2" onClick={signOut}>
               <LogOut className="h-4 w-4" />
-              Sign out
+              <span className="hidden sm:inline">Sign out</span>
             </Button>
           </div>
         </header>
-
         <main className="flex-1 p-4 md:p-8">{children}</main>
       </div>
     </div>
   );
 }
-
-
-
-
-

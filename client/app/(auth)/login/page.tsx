@@ -1,63 +1,45 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
-import { z } from "zod";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState, type FormEvent } from "react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field } from "@/components/form";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useLoginMutation } from "@/lib/hooks";
+import { authApi, errorMessage } from "@/lib/api";
 import { useAuthStore } from "@/store/auth-store";
 
-const loginSchema = z.object({
-  email: z.string().email("Enter a valid email address."),
-  password: z.string().min(8, "Password must be at least 8 characters.")
-});
+function safeRedirect(target: string | null, fallback: string): string {
+  // Only same-site paths; never an absolute or protocol-relative URL (open redirect).
+  return target && target.startsWith("/") && !target.startsWith("//") ? target : fallback;
+}
 
-type LoginFormState = z.infer<typeof loginSchema>;
-
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
-  const loginMutation = useLoginMutation();
-  const token = useAuthStore((state) => state.token);
-  const hydrated = useAuthStore((state) => state.hydrated);
+  const params = useSearchParams();
+  const setUser = useAuthStore((s) => s.setUser);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
-  const [formState, setFormState] = useState<LoginFormState>({
-    email: "",
-    password: ""
-  });
-  const [errors, setErrors] = useState<Partial<Record<keyof LoginFormState, string>>>({});
-
-  useEffect(() => {
-    if (hydrated && token) {
-      router.replace("/dashboard");
-    }
-  }, [hydrated, router, token]);
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
-
-    const parsed = loginSchema.safeParse(formState);
-
-    if (!parsed.success) {
-      const fieldErrors = parsed.error.flatten().fieldErrors;
-
-      setErrors({
-        email: fieldErrors.email?.[0],
-        password: fieldErrors.password?.[0]
-      });
-      return;
+    setPending(true);
+    setError(null);
+    try {
+      const { user } = await authApi.login(email.trim(), password);
+      setUser(user);
+      const home = user.role === "CUSTOMER" ? "/dashboard" : "/admin";
+      router.replace(safeRedirect(params.get("from"), home));
+    } catch (err) {
+      setError(errorMessage(err, "Unable to sign in."));
+    } finally {
+      setPending(false);
+      setPassword("");
     }
-
-    setErrors({});
-
-    loginMutation.mutate(parsed.data, {
-      onSuccess: () => {
-        router.replace("/dashboard");
-      }
-    });
   };
 
   return (
@@ -65,49 +47,37 @@ export default function LoginPage() {
       <CardHeader>
         <div>
           <CardTitle>Welcome back</CardTitle>
-          <CardDescription>Sign in to continue to your banking workspace.</CardDescription>
+          <CardDescription>Sign in to Loretta Bank.</CardDescription>
         </div>
       </CardHeader>
       <CardContent>
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium text-slate">Email</span>
-            <Input
-              type="email"
-              value={formState.email}
-              onChange={(event) => setFormState((prev) => ({ ...prev, email: event.target.value }))}
-              autoComplete="email"
-              disabled={loginMutation.isPending}
-            />
-            {errors.email ? <p className="text-xs text-danger">{errors.email}</p> : null}
-          </label>
-
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium text-slate">Password</span>
-            <Input
-              type="password"
-              value={formState.password}
-              onChange={(event) => setFormState((prev) => ({ ...prev, password: event.target.value }))}
-              autoComplete="current-password"
-              disabled={loginMutation.isPending}
-            />
-            {errors.password ? <p className="text-xs text-danger">{errors.password}</p> : null}
-          </label>
-
-          <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
-            {loginMutation.isPending ? "Signing in..." : "Sign in"}
+        <form className="space-y-4" onSubmit={submit}>
+          <Field label="Email">
+            <Input type="email" autoComplete="email" required value={email}
+              onChange={(e) => setEmail(e.target.value)} disabled={pending} />
+          </Field>
+          <Field label="Password">
+            <Input type="password" autoComplete="current-password" required value={password}
+              onChange={(e) => setPassword(e.target.value)} disabled={pending} />
+          </Field>
+          {error ? <p className="text-sm text-danger" role="alert">{error}</p> : null}
+          <Button type="submit" className="w-full" disabled={pending}>
+            {pending ? "Signing in…" : "Sign in"}
           </Button>
+          <p className="text-center text-sm text-slate">
+            New to Loretta Bank?{" "}
+            <Link href="/register" className="font-semibold text-primary">Open an account</Link>
+          </p>
         </form>
-
-        <p className="mt-4 text-sm text-slate">
-          Need an account?{" "}
-          <Link href="/register" className="font-semibold text-primary">
-            Register
-          </Link>
-        </p>
       </CardContent>
     </Card>
   );
 }
 
-
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}

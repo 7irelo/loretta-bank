@@ -1,418 +1,203 @@
 import axios, { AxiosError } from "axios";
-import toast from "react-hot-toast";
 
-import { clearAuthCookies, getAccessToken, normalizeAuthSession } from "@/lib/auth";
-import { useAuthStore } from "@/store/auth-store";
-import type { CreateAccountPayload, Account } from "@/types/account";
-import type { PaginatedResponse } from "@/types/api";
-import type { Customer } from "@/types/customer";
-import type { AuthSession, LoginPayload, RegisterPayload } from "@/types/auth";
-import type { Transaction, TransactionFilters, TransferPayload } from "@/types/transaction";
+import type {
+  Account,
+  AssistantReply,
+  AuditLog,
+  Customer,
+  HelpAnswer,
+  Insights,
+  KycStatus,
+  NotificationItem,
+  PaginatedResponse,
+  PaymentProposal,
+  Reconciliation,
+  SearchResult,
+  SessionUser,
+  Statement,
+  Transaction,
+  TransactionType,
+  Transfer
+} from "@/types/api";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
-
-type ApiRecord = Record<string, unknown>;
-
-const isRecord = (value: unknown): value is ApiRecord =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const asString = (value: unknown): string => (typeof value === "string" ? value : "");
-
-const asNumber = (value: unknown, fallback = 0): number => {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-
-  return fallback;
-};
-
-const unwrapApiPayload = <T>(payload: unknown): T => {
-  if (isRecord(payload) && "data" in payload) {
-    return payload.data as T;
-  }
-
-  return payload as T;
-};
-
-export const normalizePaginatedResponse = <T>(payload: unknown): PaginatedResponse<T> => {
-  const raw = unwrapApiPayload<unknown>(payload);
-
-  if (Array.isArray(raw)) {
-    return {
-      content: raw as T[],
-      page: 0,
-      size: raw.length,
-      totalElements: raw.length,
-      totalPages: 1,
-      first: true,
-      last: true
-    };
-  }
-
-  const source = (raw ?? {}) as ApiRecord;
-  const content = Array.isArray(source.content) ? (source.content as T[]) : [];
-  const page = Number(source.page ?? source.number ?? 0);
-  const size = Number(source.size ?? content.length);
-  const totalElements = Number(source.totalElements ?? source.total ?? content.length);
-  const totalPages = Number(source.totalPages ?? 1);
-
-  return {
-    content,
-    page,
-    size,
-    totalElements,
-    totalPages,
-    first: page === 0,
-    last: page + 1 >= totalPages
-  };
-};
-
-const normalizeAccount = (raw: unknown): Account => {
-  const source = (raw ?? {}) as ApiRecord;
-
-  return {
-    id: String(source.id ?? ""),
-    accountNumber: asString(source.accountNumber),
-    accountType: asString(source.accountType),
-    balance: asNumber(source.balance),
-    currency: asString(source.currency) || "ZAR",
-    customerId: String(source.customerId ?? ""),
-    status: asString(source.status) || "ACTIVE",
-    createdAt: asString(source.createdAt)
-  };
-};
-
-const normalizeTransaction = (raw: unknown): Transaction => {
-  const source = (raw ?? {}) as ApiRecord;
-
-  return {
-    id: String(source.id ?? source.transferId ?? ""),
-    accountId: String(source.accountId ?? ""),
-    sourceAccountId: String(source.sourceAccountId ?? ""),
-    targetAccountId: String(source.targetAccountId ?? ""),
-    amount: asNumber(source.amount),
-    currency: asString(source.currency) || "ZAR",
-    type: asString(source.type) || "TRANSFER",
-    description: asString(source.description),
-    reference: asString(source.reference),
-    createdAt: asString(source.createdAt) || new Date().toISOString()
-  };
-};
-
-const filterTransactions = (transactions: Transaction[], filters: TransactionFilters): Transaction[] => {
-  const normalizedType = filters.type?.trim().toUpperCase() ?? "";
-  const startAt = filters.startDate ? new Date(`${filters.startDate}T00:00:00`).getTime() : null;
-  const endAt = filters.endDate ? new Date(`${filters.endDate}T23:59:59.999`).getTime() : null;
-
-  return transactions.filter((transaction) => {
-    if (normalizedType && transaction.type.toUpperCase() !== normalizedType) {
-      return false;
-    }
-
-    const createdAt = new Date(transaction.createdAt).getTime();
-    if (startAt !== null && createdAt < startAt) {
-      return false;
-    }
-
-    if (endAt !== null && createdAt > endAt) {
-      return false;
-    }
-
-    return true;
-  });
-};
-
-const paginateTransactions = (
-  transactions: Transaction[],
-  page: number,
-  size: number
-): PaginatedResponse<Transaction> => {
-  const safeSize = Math.max(size, 1);
-  const safePage = Math.max(page, 0);
-  const totalElements = transactions.length;
-  const totalPages = Math.max(Math.ceil(totalElements / safeSize), 1);
-  const startIndex = safePage * safeSize;
-  const content = transactions.slice(startIndex, startIndex + safeSize);
-
-  return {
-    content,
-    page: safePage,
-    size: safeSize,
-    totalElements,
-    totalPages,
-    first: safePage === 0,
-    last: safePage + 1 >= totalPages
-  };
-};
-
-let cachedCustomerId: string | null = null;
-
-export const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+/**
+ * All calls go to same-origin route handlers. Tokens live in HttpOnly cookies set by those
+ * handlers, so nothing here ever touches a credential.
+ */
+export const api = axios.create({
+  baseURL: "/api/proxy",
+  timeout: 30000,
   withCredentials: true,
+  headers: { "Content-Type": "application/json", "x-loretta-csrf": "1" }
+});
+
+const auth = axios.create({
+  baseURL: "/api/auth",
   timeout: 15000,
-  headers: {
-    "Content-Type": "application/json"
-  }
+  withCredentials: true,
+  headers: { "Content-Type": "application/json", "x-loretta-csrf": "1" }
 });
 
-apiClient.interceptors.request.use((config) => {
-  const token = getAccessToken();
-
-  if (token) {
-    config.headers = config.headers ?? {};
-    (config.headers as Record<string, string>).Authorization = `Bearer ${token}`;
-  }
-
-  return config;
-});
-
-apiClient.interceptors.response.use(
+api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401 && typeof window !== "undefined") {
-      cachedCustomerId = null;
-
-      const authStore = useAuthStore.getState();
-
-      authStore.clearSession();
-      clearAuthCookies();
-      toast.error("Session expired. Please log in again.");
-
       if (!window.location.pathname.startsWith("/login")) {
-        window.location.href = "/login";
+        window.location.href = `/login?from=${encodeURIComponent(window.location.pathname)}`;
       }
     }
-
     return Promise.reject(error);
   }
 );
 
-export const getApiErrorMessage = (error: unknown, fallback: string): string => {
+export const isStepUpRequired = (error: unknown): boolean =>
+  axios.isAxiosError(error) && error.response?.status === 428;
+
+export const errorMessage = (error: unknown, fallback: string): string => {
   if (axios.isAxiosError(error)) {
-    const responseData = error.response?.data;
-
-    if (typeof responseData === "string" && responseData.trim().length > 0) {
-      return responseData;
+    const data = error.response?.data as { message?: string; error?: string } | undefined;
+    if (data?.message) {
+      return data.message;
     }
-
-    if (isRecord(responseData)) {
-      const message = responseData.message;
-      const errorText = responseData.error;
-
-      if (typeof message === "string" && message.trim().length > 0) {
-        return message;
-      }
-
-      if (typeof errorText === "string" && errorText.trim().length > 0) {
-        return errorText;
-      }
+    if (error.response?.status === 429) {
+      return "Too many requests. Please wait a moment and try again.";
     }
   }
-
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-
   return fallback;
 };
 
-const resolveCurrentCustomerId = async (): Promise<string | null> => {
-  const role = useAuthStore.getState().user?.role;
-  if (role && role !== "CUSTOMER") {
-    return null;
-  }
+export const newIdempotencyKey = (): string =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-  if (cachedCustomerId) {
-    return cachedCustomerId;
-  }
-
-  const response = await apiClient.get("/api/v1/customers/me");
-  const raw = unwrapApiPayload<unknown>(response.data);
-  const customerIdValue = (raw as ApiRecord).id;
-  const customerId =
-    customerIdValue === null || customerIdValue === undefined ? "" : String(customerIdValue);
-
-  if (!customerId) {
-    return null;
-  }
-
-  cachedCustomerId = customerId;
-  return customerId;
-};
+const data = <T>(promise: Promise<{ data: T }>): Promise<T> => promise.then((r) => r.data);
 
 export const authApi = {
-  login: async (payload: LoginPayload): Promise<AuthSession> => {
-    const response = await apiClient.post("/api/v1/auth/login", payload);
-    const raw = unwrapApiPayload<unknown>(response.data);
-    cachedCustomerId = null;
-
-    return normalizeAuthSession(raw);
-  },
-  register: async (payload: RegisterPayload): Promise<AuthSession> => {
-    const [firstName, ...rest] = payload.fullName.trim().split(/\s+/);
-    const lastName = rest.join(" ");
-    const response = await apiClient.post("/api/v1/auth/register", {
-      email: payload.email,
-      password: payload.password,
-      firstName: firstName || payload.email.split("@")[0],
-      lastName: lastName || "Customer"
-    });
-    const raw = unwrapApiPayload<unknown>(response.data);
-    cachedCustomerId = null;
-
-    return normalizeAuthSession(raw);
-  }
+  login: (email: string, password: string) =>
+    data<{ user: SessionUser }>(auth.post("/login", { email, password })),
+  register: (fullName: string, email: string, password: string) =>
+    data<{ user: SessionUser }>(auth.post("/register", { fullName, email, password })),
+  logout: () => data(auth.post("/logout")),
+  stepUp: (password: string) => data(auth.post("/step-up", { password }))
 };
 
 export const customersApi = {
-  getMe: async (): Promise<Customer> => {
-    const response = await apiClient.get("/api/v1/customers/me");
-    const raw = unwrapApiPayload<unknown>(response.data);
-    const source = (raw ?? {}) as ApiRecord;
-
-    return {
-      id: String(source.id ?? ""),
-      firstName: asString(source.firstName),
-      lastName: asString(source.lastName),
-      email: asString(source.email),
-      phoneNumber: asString(source.phoneNumber) || undefined,
-      createdAt: asString(source.createdAt) || undefined
-    };
-  },
-  getAll: async (): Promise<Customer[]> => {
-    const response = await apiClient.get("/api/v1/customers");
-    const raw = unwrapApiPayload<unknown>(response.data);
-
-    if (Array.isArray(raw)) {
-      return raw as Customer[];
-    }
-
-    if (isRecord(raw) && Array.isArray(raw.content)) {
-      return raw.content as Customer[];
-    }
-
-    return [];
-  }
+  me: () => data<Customer>(api.get("/api/v1/customers/me")),
+  create: (body: Omit<Customer, "id" | "kycStatus" | "createdAt">) =>
+    data<Customer>(api.post("/api/v1/customers", body)),
+  update: (id: number, body: Partial<Pick<Customer, "phoneNumber" | "address">>) =>
+    data<Customer>(api.put(`/api/v1/customers/${id}`, body)),
+  list: (page = 0, kycStatus?: KycStatus) =>
+    data<PaginatedResponse<Customer>>(
+      api.get("/api/v1/customers", { params: { page, size: 20, kycStatus } })
+    ),
+  setKyc: (id: number, status: KycStatus) =>
+    data<Customer>(api.patch(`/api/v1/customers/${id}/kyc`, null, { params: { status } }))
 };
 
 export const accountsApi = {
-  getAll: async (): Promise<Account[]> => {
-    const role = useAuthStore.getState().user?.role;
-
-    if (role === "ADMIN" || role === "SUPPORT") {
-      const customers = await customersApi.getAll();
-      if (customers.length === 0) {
-        return [];
-      }
-
-      const perCustomerAccounts = await Promise.all(
-        customers.map(async (customer) => {
-          const response = await apiClient.get(`/api/v1/accounts/customer/${customer.id}`);
-          const raw = unwrapApiPayload<unknown>(response.data);
-          const rows = Array.isArray(raw) ? raw : [];
-          return rows.map((account) => normalizeAccount(account));
-        })
-      );
-
-      return perCustomerAccounts.flat();
-    }
-
-    const customerId = await resolveCurrentCustomerId();
-    if (!customerId) {
-      return [];
-    }
-
-    const response = await apiClient.get(`/api/v1/accounts/customer/${customerId}`);
-    const raw = unwrapApiPayload<unknown>(response.data);
-    const rows = Array.isArray(raw) ? raw : [];
-
-    return rows.map((account) => normalizeAccount(account));
-  },
-  create: async (payload: CreateAccountPayload): Promise<Account> => {
-    const parsedCustomerId = Number(payload.customerId);
-    const requestBody = {
-      customerId: Number.isFinite(parsedCustomerId) ? parsedCustomerId : payload.customerId,
-      accountType: payload.accountType,
-      currency: (payload.currency || "ZAR").toUpperCase(),
-      initialDeposit: payload.initialDeposit ?? 0
-    };
-    const response = await apiClient.post("/api/v1/accounts", requestBody);
-
-    return normalizeAccount(unwrapApiPayload<unknown>(response.data));
-  }
+  mine: (customerId: number) => data<Account[]>(api.get(`/api/v1/accounts/customer/${customerId}`)),
+  get: (id: number) => data<Account>(api.get(`/api/v1/accounts/${id}`)),
+  open: (customerId: number, accountType: Account["accountType"]) =>
+    data<Account>(api.post("/api/v1/accounts", { customerId, accountType, currency: "ZAR" })),
+  list: (page = 0) =>
+    data<PaginatedResponse<Account>>(api.get("/api/v1/accounts", { params: { page, size: 20 } })),
+  action: (id: number, action: "freeze" | "unfreeze" | "close") =>
+    data<Account>(api.patch(`/api/v1/accounts/${id}/${action}`)),
+  reconciliation: () => data<Reconciliation>(api.get("/api/v1/accounts/admin/reconciliation"))
 };
 
+export interface TransactionQuery {
+  page?: number;
+  size?: number;
+  type?: TransactionType | "";
+  from?: string;
+  to?: string;
+  q?: string;
+}
+
+const cleanQuery = (query: TransactionQuery) =>
+  Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined && v !== ""));
+
 export const transactionsApi = {
-  getAll: async (filters: TransactionFilters): Promise<PaginatedResponse<Transaction>> => {
-    const page = filters.page ?? 0;
-    const size = filters.size ?? 10;
-
-    if (filters.accountId) {
-      const response = await apiClient.get(`/api/v1/transactions/account/${filters.accountId}`, {
-        params: { page, size }
-      });
-      const pageData = normalizePaginatedResponse<unknown>(response.data);
-      const normalized = pageData.content.map((transaction) => normalizeTransaction(transaction));
-      const filtered = filterTransactions(normalized, filters);
-
-      return paginateTransactions(filtered, page, size);
-    }
-
-    const accounts = await accountsApi.getAll();
-    if (accounts.length === 0) {
-      return paginateTransactions([], page, size);
-    }
-
-    const fetchSize = Math.max(size * 3, 50);
-    const perAccountPages = await Promise.all(
-      accounts.map(async (account) => {
-        const response = await apiClient.get(`/api/v1/transactions/account/${account.id}`, {
-          params: { page: 0, size: fetchSize }
-        });
-        const pageData = normalizePaginatedResponse<unknown>(response.data);
-        return pageData.content.map((transaction) => normalizeTransaction(transaction));
+  mine: (query: TransactionQuery) =>
+    data<PaginatedResponse<Transaction>>(
+      api.get("/api/v1/transactions/mine", { params: cleanQuery(query) })
+    ),
+  forAccount: (accountId: number, query: TransactionQuery) =>
+    data<PaginatedResponse<Transaction>>(
+      api.get(`/api/v1/transactions/account/${accountId}`, { params: cleanQuery(query) })
+    ),
+  transfer: (
+    body: {
+      sourceAccountId: number;
+      targetAccountId?: number;
+      targetAccountNumber?: string;
+      amount: number;
+      description?: string;
+    },
+    idempotencyKey: string
+  ) =>
+    data<Transfer>(
+      api.post("/api/v1/transfers", { ...body, currency: "ZAR" }, {
+        headers: { "Idempotency-Key": idempotencyKey }
       })
+    ),
+  deposit: (accountId: number, amount: number, description: string, idempotencyKey: string) =>
+    data<Transaction>(
+      api.post(
+        "/api/v1/transactions/deposit",
+        { accountId, amount, currency: "ZAR", description },
+        { headers: { "Idempotency-Key": idempotencyKey } }
+      )
+    )
+};
+
+export const notificationsApi = {
+  list: (page = 0) =>
+    data<PaginatedResponse<NotificationItem>>(
+      api.get("/api/v1/notifications", { params: { page, size: 20 } })
+    ),
+  unread: () => data<{ unread: number }>(api.get("/api/v1/notifications/unread-count")),
+  markRead: (id: number) => data(api.patch(`/api/v1/notifications/${id}/read`)),
+  markAllRead: () => data(api.post("/api/v1/notifications/read-all"))
+};
+
+export const reportsApi = {
+  generate: (accountId: number, periodFrom: string, periodTo: string) =>
+    data<Statement>(api.post("/api/v1/reports/statements", { accountId, periodFrom, periodTo })),
+  forAccount: (accountId: number) =>
+    data<Statement[]>(api.get(`/api/v1/reports/statements/account/${accountId}`))
+};
+
+export const auditApi = {
+  search: (page = 0, eventType?: string) =>
+    data<PaginatedResponse<AuditLog>>(
+      api.get("/api/v1/audit", { params: { page, size: 20, eventType: eventType || undefined } })
+    )
+};
+
+export const usersApi = {
+  list: () =>
+    data<{ id: number; email: string; firstName: string; lastName: string; role: string; enabled: boolean }[]>(
+      api.get("/api/v1/auth/users")
+    ),
+  setRole: (id: number, role: string) => data(api.put(`/api/v1/auth/users/${id}/role`, { role }))
+};
+
+export const aiApi = {
+  chat: (message: string, history: { role: "user" | "assistant"; text: string }[]) =>
+    data<AssistantReply>(api.post("/api/v1/ai/assistant", { message, history })),
+  proposal: (id: string) => data<PaymentProposal>(api.get(`/api/v1/ai/proposals/${id}`)),
+  search: (question: string) => data<SearchResult>(api.post("/api/v1/ai/search", { question })),
+  help: (question: string) => data<HelpAnswer>(api.post("/api/v1/ai/help", { question })),
+  insights: () => data<Insights>(api.get("/api/v1/ai/insights")),
+  voice: (audio: Blob) => {
+    const form = new FormData();
+    form.append("audio", audio, "speech.webm");
+    return data<{ transcript: string; reply: AssistantReply; audio_base64?: string | null }>(
+      api.post("/api/v1/ai/voice", form, { headers: { "Content-Type": "multipart/form-data" } })
     );
-
-    const uniqueTransactions = new Map<string, Transaction>();
-    for (const row of perAccountPages.flat()) {
-      if (row.id) {
-        uniqueTransactions.set(row.id, row);
-      }
-    }
-
-    const merged = Array.from(uniqueTransactions.values()).sort((left, right) => {
-      return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
-    });
-    const filtered = filterTransactions(merged, filters);
-
-    return paginateTransactions(filtered, page, size);
-  },
-  transfer: async (payload: TransferPayload, idempotencyKey: string): Promise<Transaction> => {
-    const response = await apiClient.post(
-      "/api/v1/transfers",
-      {
-        sourceAccountId: Number(payload.fromAccountId),
-        targetAccountId: Number(payload.toAccountId),
-        amount: payload.amount,
-        currency: payload.currency || "ZAR",
-        description: payload.description
-      },
-      {
-        headers: {
-          "Idempotency-Key": idempotencyKey
-        }
-      }
-    );
-
-    return normalizeTransaction(unwrapApiPayload<unknown>(response.data));
   }
 };

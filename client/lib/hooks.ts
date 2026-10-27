@@ -1,101 +1,78 @@
 "use client";
 
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import axios from "axios";
 
-import { accountsApi, authApi, customersApi, getApiErrorMessage, transactionsApi } from "@/lib/api";
+import {
+  accountsApi,
+  customersApi,
+  notificationsApi,
+  transactionsApi,
+  type TransactionQuery
+} from "@/lib/api";
 import { useAuthStore } from "@/store/auth-store";
-import type { CreateAccountPayload } from "@/types/account";
-import type { LoginPayload, RegisterPayload } from "@/types/auth";
-import type { TransactionFilters, TransferPayload } from "@/types/transaction";
 
-export const queryKeys = {
-  accounts: ["accounts"] as const,
-  customers: ["customers"] as const,
-  transactions: (filters: TransactionFilters) => ["transactions", filters] as const
+export const keys = {
+  me: ["customer", "me"] as const,
+  accounts: ["accounts", "mine"] as const,
+  transactions: (q: TransactionQuery) => ["transactions", q] as const,
+  accountTransactions: (id: number, q: TransactionQuery) => ["transactions", id, q] as const,
+  unread: ["notifications", "unread"] as const
 };
 
-export const useLoginMutation = () => {
-  return useMutation({
-    mutationFn: (payload: LoginPayload) => authApi.login(payload),
-    onSuccess: (session) => {
-      useAuthStore.getState().setSession(session);
-      toast.success("Signed in successfully.");
+/** The signed-in customer's profile, or null when they haven't completed onboarding. */
+export const useCustomer = () => {
+  const isCustomer = useAuthStore((s) => s.user?.role === "CUSTOMER");
+  return useQuery({
+    queryKey: keys.me,
+    enabled: isCustomer,
+    queryFn: async () => {
+      try {
+        return await customersApi.me();
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          return null;
+        }
+        throw error;
+      }
     },
-    onError: (error) => {
-      toast.error(getApiErrorMessage(error, "Unable to sign in."));
-    }
+    staleTime: 60_000
   });
 };
 
-export const useRegisterMutation = () => {
-  return useMutation({
-    mutationFn: (payload: RegisterPayload) => authApi.register(payload),
-    onSuccess: (session) => {
-      useAuthStore.getState().setSession(session);
-      toast.success("Account created successfully.");
-    },
-    onError: (error) => {
-      toast.error(getApiErrorMessage(error, "Unable to register account."));
-    }
+export const useMyAccounts = () => {
+  const customer = useCustomer();
+  const customerId = customer.data?.id;
+  const accounts = useQuery({
+    queryKey: keys.accounts,
+    enabled: Boolean(customerId),
+    queryFn: () => accountsApi.mine(customerId as number),
+    staleTime: 15_000
   });
+  return { ...accounts, customer: customer.data, customerLoading: customer.isLoading };
 };
 
-export const useAccountsQuery = () => {
-  return useQuery({
-    queryKey: queryKeys.accounts,
-    queryFn: accountsApi.getAll,
-    staleTime: 30000
-  });
-};
-
-export const useCustomersQuery = (enabled = true) => {
-  return useQuery({
-    queryKey: queryKeys.customers,
-    queryFn: customersApi.getAll,
-    staleTime: 30000,
-    enabled
-  });
-};
-
-export const useTransactionsQuery = (filters: TransactionFilters) => {
-  return useQuery({
-    queryKey: queryKeys.transactions(filters),
-    queryFn: () => transactionsApi.getAll(filters),
+export const useMyTransactions = (query: TransactionQuery, enabled = true) =>
+  useQuery({
+    queryKey: keys.transactions(query),
+    queryFn: () => transactionsApi.mine(query),
     placeholderData: keepPreviousData,
-    staleTime: 15000
+    enabled,
+    staleTime: 10_000
   });
-};
 
-export const useTransferMutation = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ payload, idempotencyKey }: { payload: TransferPayload; idempotencyKey: string }) =>
-      transactionsApi.transfer(payload, idempotencyKey),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      toast.success("Transfer completed.");
-    },
-    onError: (error) => {
-      toast.error(getApiErrorMessage(error, "Transfer failed."));
-    }
+export const useAccountTransactions = (accountId: number, query: TransactionQuery) =>
+  useQuery({
+    queryKey: keys.accountTransactions(accountId, query),
+    queryFn: () => transactionsApi.forAccount(accountId, query),
+    placeholderData: keepPreviousData,
+    enabled: Number.isFinite(accountId)
   });
-};
 
-export const useCreateAccountMutation = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (payload: CreateAccountPayload) => accountsApi.create(payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
-      toast.success("Account created successfully.");
-    },
-    onError: (error) => {
-      toast.error(getApiErrorMessage(error, "Unable to create account."));
-    }
+export const useUnreadCount = () =>
+  useQuery({
+    queryKey: keys.unread,
+    queryFn: notificationsApi.unread,
+    refetchInterval: 60_000,
+    staleTime: 30_000
   });
-};
-

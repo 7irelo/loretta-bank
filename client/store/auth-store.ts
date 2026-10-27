@@ -1,36 +1,35 @@
 "use client";
 
+import Cookies from "js-cookie";
 import { create } from "zustand";
 
-import { clearAuthCookies, getAccessToken, getAuthUserFromCookie, setAuthCookies } from "@/lib/auth";
-import type { AuthSession, AuthUser } from "@/types/auth";
+import type { SessionUser } from "@/types/api";
 
+const USER_COOKIE = "lb_user";
+
+/** Display-only session state. Tokens are HttpOnly and never reach this store. */
 interface AuthStore {
-  token: string | null;
-  user: AuthUser | null;
+  user: SessionUser | null;
   hydrated: boolean;
-  setSession: (session: AuthSession) => void;
-  clearSession: () => void;
-  hydrateFromCookies: () => void;
+  setUser: (user: SessionUser | null) => void;
+  hydrate: () => void;
 }
 
+const readUserCookie = (): SessionUser | null => {
+  const raw = Cookies.get(USER_COOKIE);
+  if (!raw) {
+    return null;
+  }
+  try {
+    return JSON.parse(decodeURIComponent(raw)) as SessionUser;
+  } catch {
+    return null;
+  }
+};
+
 export const useAuthStore = create<AuthStore>((set) => ({
-  token: null,
   user: null,
   hydrated: false,
-  setSession: (session) => {
-    setAuthCookies(session);
-    set({ token: session.token, user: session.user, hydrated: true });
-  },
-  clearSession: () => {
-    clearAuthCookies();
-    set({ token: null, user: null, hydrated: true });
-  },
-  hydrateFromCookies: () => {
-    const token = getAccessToken();
-    const user = getAuthUserFromCookie();
-
-    set({ token, user, hydrated: true });
-  }
+  setUser: (user) => set({ user, hydrated: true }),
+  hydrate: () => set({ user: readUserCookie(), hydrated: true })
 }));
-

@@ -1,150 +1,59 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useMemo, useState } from "react";
 
+import { Amount } from "@/components/form";
 import { SectionHeader } from "@/components/section-header";
+import { TransactionList } from "@/components/transaction-list";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAccountsQuery, useTransactionsQuery } from "@/lib/hooks";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
-
-const PAGE_SIZE = 10;
+import { accountsApi } from "@/lib/api";
+import { useAccountTransactions, useMyAccounts } from "@/lib/hooks";
+import { formatDateTime } from "@/lib/utils";
 
 export default function AccountDetailPage() {
   const params = useParams<{ id: string }>();
-  const accountId = params.id;
-
+  const accountId = Number(params.id);
   const [page, setPage] = useState(0);
-  const accountsQuery = useAccountsQuery();
-  const transactionsQuery = useTransactionsQuery({
-    page,
-    size: PAGE_SIZE,
-    accountId
-  });
+  const mine = useMyAccounts();
+  const ids = useMemo(() => new Set((mine.data ?? []).map((a) => a.id)), [mine.data]);
+  const account = useQuery({ queryKey: ["account", accountId], queryFn: () => accountsApi.get(accountId) });
+  const transactions = useAccountTransactions(accountId, { page, size: 20 });
 
-  const account = useMemo(
-    () => (accountsQuery.data ?? []).find((item) => String(item.id) === String(accountId)),
-    [accountId, accountsQuery.data]
-  );
-
-  if (accountsQuery.isLoading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-44" />
-        <Skeleton className="h-28 w-full" />
-        <Skeleton className="h-72 w-full" />
-      </div>
-    );
+  if (account.isLoading) {
+    return <Skeleton className="h-60 w-full" />;
   }
-
-  if (!account) {
-    return (
-      <Card>
-        <CardContent>
-          <p className="text-sm text-slate">Account not found or unavailable for your profile.</p>
-        </CardContent>
-      </Card>
-    );
+  if (!account.data) {
+    return <p className="text-sm text-slate">Account not found.</p>;
   }
-
-  const pageData = transactionsQuery.data;
-  const rows = pageData?.content ?? [];
-  const totalPages = pageData?.totalPages ?? 1;
+  const a = account.data;
 
   return (
-    <div>
+    <div className="space-y-6">
       <SectionHeader
-        title={`${account.accountType} account`}
-        description={`Account number ${account.accountNumber}`}
+        title={a.accountType === "CHECKING" ? "Cheque account" : "Savings account"}
+        description={a.accountNumber}
+        action={<Link href={`/statements?account=${a.id}`}><Button variant="secondary">Statements</Button></Link>}
       />
-
-      <Card className="mb-6">
-        <CardHeader>
-          <div>
-            <CardTitle>Account overview</CardTitle>
-            <CardDescription>Current balance and metadata from the accounts service.</CardDescription>
-          </div>
-        </CardHeader>
+      <Card>
         <CardContent className="grid gap-4 md:grid-cols-3">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted">Balance</p>
-            <p className="mt-1 text-3xl font-semibold text-ink">
-              {formatCurrency(account.balance, account.currency || "ZAR")}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted">Status</p>
-            <p className="mt-1 text-sm font-semibold text-ink">{account.status || "ACTIVE"}</p>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted">Opened</p>
-            <p className="mt-1 text-sm font-semibold text-ink">{formatDateTime(account.createdAt)}</p>
-          </div>
+          <div><p className="text-xs uppercase text-muted">Balance</p><p className="text-3xl"><Amount value={Number(a.balance)} currency={a.currency} /></p></div>
+          <div><p className="text-xs uppercase text-muted">Status</p><Badge variant={a.status === "ACTIVE" ? "success" : "danger"}>{a.status.toLowerCase()}</Badge></div>
+          <div><p className="text-xs uppercase text-muted">Opened</p><p className="text-sm text-ink">{formatDateTime(a.createdAt)}</p></div>
         </CardContent>
       </Card>
-
       <Card>
-        <CardHeader>
-          <div>
-            <CardTitle>Transaction history</CardTitle>
-            <CardDescription>Filtered by this account identifier.</CardDescription>
-          </div>
-        </CardHeader>
+        <CardHeader><CardTitle>Transactions</CardTitle></CardHeader>
         <CardContent>
-          {transactionsQuery.isLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
-            </div>
-          ) : rows.length === 0 ? (
-            <p className="text-sm text-slate">No transactions found for this account.</p>
-          ) : (
-            <div className="table-shell">
-              <table className="table-base">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th>Description</th>
-                    <th className="text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((transaction) => (
-                    <tr key={transaction.id}>
-                      <td>{formatDateTime(transaction.createdAt)}</td>
-                      <td>{transaction.type}</td>
-                      <td>{transaction.description || transaction.reference || "-"}</td>
-                      <td className="text-right font-semibold text-ink">
-                        {formatCurrency(transaction.amount, transaction.currency || "ZAR")}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <div className="mt-4 flex items-center justify-between">
-            <p className="text-xs text-slate">
-              Page {page + 1} of {Math.max(totalPages, 1)}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage((prev) => prev - 1)}>
-                Previous
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page + 1 >= totalPages}
-                onClick={() => setPage((prev) => prev + 1)}
-              >
-                Next
-              </Button>
-            </div>
+          <TransactionList transactions={transactions.data?.content ?? []} myAccountIds={ids} />
+          <div className="mt-4 flex justify-end gap-2">
+            <Button size="sm" variant="secondary" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Previous</Button>
+            <Button size="sm" variant="secondary" disabled={transactions.data?.last ?? true} onClick={() => setPage((p) => p + 1)}>Next</Button>
           </div>
         </CardContent>
       </Card>

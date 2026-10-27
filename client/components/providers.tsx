@@ -24,7 +24,7 @@ export default function Providers({ children }: ProvidersProps) {
   );
 
   useEffect(() => {
-    useAuthStore.getState().hydrateFromCookies();
+    useAuthStore.getState().hydrate();
   }, []);
 
   return (

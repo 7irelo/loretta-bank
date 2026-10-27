@@ -1,236 +1,210 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { z } from "zod";
 
+import { Amount, Field, Select } from "@/components/form";
 import { SectionHeader } from "@/components/section-header";
+import { StepUpDialog } from "@/components/step-up-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useAccountsQuery, useTransferMutation } from "@/lib/hooks";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { errorMessage, isStepUpRequired, newIdempotencyKey, transactionsApi } from "@/lib/api";
+import { useMyAccounts } from "@/lib/hooks";
+import { cn } from "@/lib/utils";
+import type { Transfer } from "@/types/api";
 
-const transferSchema = z
-  .object({
-    fromAccountId: z.string().min(1, "Select a source account."),
-    toAccountId: z.string().min(1, "Select a destination account."),
-    amount: z.coerce.number().positive("Amount must be greater than zero."),
-    description: z.string().max(140, "Description must be under 140 characters.").optional()
-  })
-  .refine((values) => values.fromAccountId !== values.toAccountId, {
-    message: "Source and destination accounts must be different.",
-    path: ["toAccountId"]
-  });
+type Mode = "own" | "other";
 
-type TransferFormState = {
-  fromAccountId: string;
-  toAccountId: string;
-  amount: string;
-  description: string;
-};
+const schema = z.object({
+  from: z.coerce.number().int().positive("Choose an account to pay from"),
+  to: z.string().min(1, "Choose where the money goes"),
+  amount: z.coerce
+    .number()
+    .positive("Enter an amount")
+    .max(50000, "The per-payment limit is R50 000")
+    .refine((v) => Math.round(v * 100) === v * 100, "Use at most two decimals"),
+  description: z.string().trim().max(140).optional()
+});
 
 export default function TransferPage() {
-  const accountsQuery = useAccountsQuery();
-  const transferMutation = useTransferMutation();
-  const [formState, setFormState] = useState<TransferFormState>({
-    fromAccountId: "",
-    toAccountId: "",
-    amount: "",
-    description: ""
-  });
-  const [errors, setErrors] = useState<Partial<Record<keyof TransferFormState, string>>>({});
-  const [receipt, setReceipt] = useState<{ idempotencyKey: string; timestamp: string } | null>(null);
+  const queryClient = useQueryClient();
+  const accounts = useMyAccounts();
+  const list = useMemo(() => (accounts.data ?? []).filter((a) => a.status === "ACTIVE"), [accounts.data]);
+  const [mode, setMode] = useState<Mode>("own");
+  const [form, setForm] = useState({ from: "", to: "", amount: "", description: "" });
+  const [errors, setErrors] = useState<Record<string, string | undefined>>({});
+  const [review, setReview] = useState<z.infer<typeof schema> | null>(null);
+  const [stepUp, setStepUp] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<Transfer | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // One key per reviewed payment: retries after a timeout can never pay twice.
+  const keyRef = useRef<string>("");
 
-  const accounts = useMemo(() => accountsQuery.data ?? [], [accountsQuery.data]);
-  const selectedFrom = useMemo(
-    () => accounts.find((item) => String(item.id) === formState.fromAccountId),
-    [accounts, formState.fromAccountId]
-  );
+  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const toReview = (event: FormEvent) => {
     event.preventDefault();
-
-    const parsed = transferSchema.safeParse({
-      ...formState,
-      amount: formState.amount,
-      description: formState.description || undefined
-    });
-
-    if (!parsed.success) {
-      const fieldErrors = parsed.error.flatten().fieldErrors;
-
-      setErrors({
-        fromAccountId: fieldErrors.fromAccountId?.[0],
-        toAccountId: fieldErrors.toAccountId?.[0],
-        amount: fieldErrors.amount?.[0],
-        description: fieldErrors.description?.[0]
-      });
+    const parsed = schema.safeParse(form);
+    const fieldErrors: Record<string, string | undefined> = parsed.success ? {} : Object.fromEntries(
+      Object.entries(parsed.error.flatten().fieldErrors).map(([k, v]) => [k, v?.[0]])
+    );
+    if (parsed.success && mode === "other" && !/^LOR\d{10}$/.test(parsed.data.to.trim().toUpperCase())) {
+      fieldErrors.to = "Account numbers look like LOR0123456789";
+    }
+    if (parsed.success && mode === "own" && parsed.data.to === String(parsed.data.from)) {
+      fieldErrors.to = "Choose a different account";
+    }
+    setErrors(fieldErrors);
+    if (!parsed.success || Object.values(fieldErrors).some(Boolean)) {
       return;
     }
-
-    setErrors({});
-
-    const idempotencyKey =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random()}`;
-
-    transferMutation.mutate(
-      {
-        payload: {
-          fromAccountId: parsed.data.fromAccountId,
-          toAccountId: parsed.data.toAccountId,
-          amount: parsed.data.amount,
-          currency: selectedFrom?.currency || "ZAR",
-          description: parsed.data.description
-        },
-        idempotencyKey
-      },
-      {
-        onSuccess: () => {
-          setReceipt({ idempotencyKey, timestamp: new Date().toISOString() });
-          setFormState({ fromAccountId: "", toAccountId: "", amount: "", description: "" });
-        }
-      }
-    );
+    keyRef.current = newIdempotencyKey();
+    setResult(null);
+    setError(null);
+    setReview({ ...parsed.data, to: parsed.data.to.trim().toUpperCase() });
   };
 
+  const send = async () => {
+    if (!review) {
+      return;
+    }
+    setPending(true);
+    setError(null);
+    try {
+      const transfer = await transactionsApi.transfer(
+        {
+          sourceAccountId: review.from,
+          ...(mode === "own" ? { targetAccountId: Number(review.to) } : { targetAccountNumber: review.to }),
+          amount: review.amount,
+          description: review.description || undefined
+        },
+        keyRef.current
+      );
+      setResult(transfer);
+      setReview(null);
+      setForm({ from: "", to: "", amount: "", description: "" });
+      await queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    } catch (err) {
+      if (isStepUpRequired(err)) {
+        setStepUp(true);
+      } else {
+        setError(errorMessage(err, "The payment could not be completed."));
+      }
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const fromAccount = list.find((a) => String(a.id) === String(review?.from ?? form.from));
+  const toLabel = review
+    ? mode === "own"
+      ? list.find((a) => String(a.id) === review.to)?.accountNumber
+      : review.to
+    : "";
+
   return (
-    <div>
-      <SectionHeader
-        title="Transfer funds"
-        description="Move funds across accounts with idempotent submission control."
-      />
+    <div className="space-y-6">
+      <SectionHeader title="Pay & transfer" description="Move money between your accounts or pay someone." />
+      <div className="inline-flex rounded-xl border border-line bg-white p-1" role="tablist">
+        {(["own", "other"] as Mode[]).map((m) => (
+          <button key={m} role="tab" aria-selected={mode === m}
+            onClick={() => { setMode(m); setForm((p) => ({ ...p, to: "" })); setReview(null); }}
+            className={cn("rounded-lg px-4 py-2 text-sm font-medium",
+              mode === m ? "bg-primary text-white" : "text-slate hover:text-ink")}>
+            {m === "own" ? "Between my accounts" : "Pay someone"}
+          </button>
+        ))}
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>New transfer</CardTitle>
-              <CardDescription>Each transfer sends an `Idempotency-Key` header to prevent duplicates.</CardDescription>
-            </div>
-          </CardHeader>
           <CardContent>
-            {accountsQuery.isLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : (
-              <form className="space-y-4" onSubmit={handleSubmit}>
-                <label className="block space-y-1 text-sm">
-                  <span className="font-medium text-slate">From account</span>
-                  <select
-                    className="h-10 w-full rounded-xl border border-line bg-white px-3 text-sm text-ink outline-none focus:border-primary focus:ring-4 focus:ring-primary/20"
-                    value={formState.fromAccountId}
-                    onChange={(event) =>
-                      setFormState((prev) => ({ ...prev, fromAccountId: event.target.value }))
-                    }
-                    disabled={transferMutation.isPending}
-                  >
-                    <option value="">Select account</option>
-                    {accounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.accountType} - {account.accountNumber}
+            <form className="space-y-4" onSubmit={toReview} noValidate>
+              <Field label="From" error={errors.from}>
+                <Select value={form.from} onChange={set("from")}>
+                  <option value="">Choose account</option>
+                  {list.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.accountType === "CHECKING" ? "Cheque" : "Savings"} · {a.accountNumber}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              {mode === "own" ? (
+                <Field label="To" error={errors.to}>
+                  <Select value={form.to} onChange={set("to")}>
+                    <option value="">Choose account</option>
+                    {list.filter((a) => String(a.id) !== form.from).map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.accountType === "CHECKING" ? "Cheque" : "Savings"} · {a.accountNumber}
                       </option>
                     ))}
-                  </select>
-                  {errors.fromAccountId ? <p className="text-xs text-danger">{errors.fromAccountId}</p> : null}
-                </label>
-
-                <label className="block space-y-1 text-sm">
-                  <span className="font-medium text-slate">To account</span>
-                  <select
-                    className="h-10 w-full rounded-xl border border-line bg-white px-3 text-sm text-ink outline-none focus:border-primary focus:ring-4 focus:ring-primary/20"
-                    value={formState.toAccountId}
-                    onChange={(event) =>
-                      setFormState((prev) => ({ ...prev, toAccountId: event.target.value }))
-                    }
-                    disabled={transferMutation.isPending}
-                  >
-                    <option value="">Select account</option>
-                    {accounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.accountType} - {account.accountNumber}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.toAccountId ? <p className="text-xs text-danger">{errors.toAccountId}</p> : null}
-                </label>
-
-                <label className="block space-y-1 text-sm">
-                  <span className="font-medium text-slate">Amount</span>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={formState.amount}
-                    onChange={(event) => setFormState((prev) => ({ ...prev, amount: event.target.value }))}
-                    disabled={transferMutation.isPending}
-                  />
-                  {errors.amount ? <p className="text-xs text-danger">{errors.amount}</p> : null}
-                </label>
-
-                <label className="block space-y-1 text-sm">
-                  <span className="font-medium text-slate">Description (optional)</span>
-                  <Input
-                    value={formState.description}
-                    onChange={(event) =>
-                      setFormState((prev) => ({ ...prev, description: event.target.value }))
-                    }
-                    disabled={transferMutation.isPending}
-                  />
-                  {errors.description ? <p className="text-xs text-danger">{errors.description}</p> : null}
-                </label>
-
-                <Button type="submit" disabled={transferMutation.isPending}>
-                  {transferMutation.isPending ? "Submitting transfer..." : "Submit transfer"}
-                </Button>
-              </form>
-            )}
+                  </Select>
+                </Field>
+              ) : (
+                <Field label="Recipient account number" error={errors.to}
+                  hint="Paying a new account asks for your password.">
+                  <Input value={form.to} onChange={set("to")} placeholder="LOR0123456789" autoComplete="off" />
+                </Field>
+              )}
+              <Field label="Amount (R)" error={errors.amount}>
+                <Input inputMode="decimal" value={form.amount} onChange={set("amount")} />
+              </Field>
+              <Field label="Reference (optional)" error={errors.description}>
+                <Input value={form.description} onChange={set("description")} maxLength={140} />
+              </Field>
+              <Button type="submit" disabled={list.length === 0}>Review payment</Button>
+            </form>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>Transfer status</CardTitle>
-              <CardDescription>Latest request metadata for operations traceability.</CardDescription>
+              <CardTitle>{review ? "Check and confirm" : "Summary"}</CardTitle>
+              <CardDescription>Nothing is sent until you confirm.</CardDescription>
             </div>
           </CardHeader>
-          <CardContent>
-            {receipt ? (
-              <div className="space-y-3 rounded-xl border border-success/20 bg-success/5 p-4">
-                <p className="text-sm font-semibold text-success">Transfer submitted successfully.</p>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted">Idempotency Key</p>
-                  <p className="break-all font-mono text-sm text-ink">{receipt.idempotencyKey}</p>
+          <CardContent className="space-y-4 text-sm">
+            {review ? (
+              <>
+                <dl className="space-y-2">
+                  <div className="flex justify-between"><dt className="text-slate">From</dt><dd>{fromAccount?.accountNumber}</dd></div>
+                  <div className="flex justify-between"><dt className="text-slate">To</dt><dd className="font-mono">{toLabel}</dd></div>
+                  <div className="flex justify-between"><dt className="text-slate">Amount</dt><dd><Amount value={review.amount} /></dd></div>
+                  {review.description ? (
+                    <div className="flex justify-between"><dt className="text-slate">Reference</dt><dd>{review.description}</dd></div>
+                  ) : null}
+                </dl>
+                {error ? <p className="text-danger" role="alert">{error}</p> : null}
+                <div className="flex gap-2">
+                  <Button onClick={send} disabled={pending}>{pending ? "Sending…" : "Confirm payment"}</Button>
+                  <Button variant="secondary" onClick={() => setReview(null)} disabled={pending}>Edit</Button>
                 </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted">Submitted</p>
-                  <p className="text-sm text-ink">{formatDateTime(receipt.timestamp)}</p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-slate">No transfer has been submitted in this session.</p>
-            )}
-
-            {selectedFrom ? (
-              <div className="mt-4 rounded-xl border border-line bg-surface p-4">
-                <p className="text-xs uppercase tracking-wide text-muted">Source account balance</p>
-                <p className="text-xl font-semibold text-ink">
-                  {formatCurrency(selectedFrom.balance, selectedFrom.currency || "ZAR")}
+              </>
+            ) : result ? (
+              <div className="rounded-xl border border-success/20 bg-success/5 p-4">
+                <p className="font-semibold text-success">
+                  {result.status === "PENDING" ? "Payment is being processed" : "Payment sent"}
                 </p>
+                <p className="text-slate">Reference {result.reference}</p>
               </div>
-            ) : null}
+            ) : fromAccount ? (
+              <p>Available: <Amount value={Number(fromAccount.balance)} /></p>
+            ) : (
+              <p className="text-slate">Fill in the form to review your payment.</p>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      <StepUpDialog open={stepUp} onCancel={() => setStepUp(false)}
+        onConfirmed={() => { setStepUp(false); void send(); }} />
     </div>
   );
 }
-
-
-
