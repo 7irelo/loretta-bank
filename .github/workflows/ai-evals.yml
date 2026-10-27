@@ -1,0 +1,37 @@
+name: AI evals
+
+# Runs the golden-set evals against live models when prompts, tools or models change.
+# Fails the PR if any metric drops below ai/evals/thresholds.json.
+on:
+  pull_request:
+    paths:
+      - "ai/src/**"
+      - "ai/evals/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    defaults:
+      run:
+        working-directory: ai
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Run evals
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run python -m evals.run --trials 3
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-reports
+          path: ai/evals/reports/

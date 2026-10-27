@@ -14,3 +14,4 @@ data:
   TRANSACTION_SERVICE_URL: {{ .Values.global.serviceUrls.transaction | quote }}
   AUTH_BOOTSTRAP_ENABLED: {{ .Values.global.auth.bootstrapEnabled | quote }}
   AUTH_BOOTSTRAP_ADMIN_EMAIL: {{ .Values.global.auth.bootstrapAdminEmail | quote }}
+  AI_SERVICE_URL: "http://{{ .Release.Name }}-ai-service:8090"

@@ -60,6 +60,17 @@ spring:
           uri: lb://reporting-service
           predicates:
             - Path=/api/v1/reports/**
+        - id: ai-service
+          uri: ${AI_SERVICE_URL:http://localhost:8090}
+          predicates:
+            - Path=/api/v1/ai/**
+          filters:
+            # Model calls cost money: a tighter per-user limit than the default.
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 1
+                redis-rate-limiter.burstCapacity: 5
+                key-resolver: "#{@userKeyResolver}"
   data:
     redis:
       host: ${REDIS_HOST:localhost}

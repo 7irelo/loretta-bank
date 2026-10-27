@@ -1,0 +1,12 @@
+replicaCount: 1
+image:
+  repository: loretta-ai-service
+  tag: latest
+port: 8090
+resources:
+  requests:
+    cpu: 50m
+    memory: 192Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

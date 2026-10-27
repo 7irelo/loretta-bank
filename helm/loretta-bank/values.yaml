@@ -2,6 +2,9 @@
 createNamespace: false
 
 global:
+  networkPolicy:
+    enabled: true
+    ingressNamespace: kube-system
   imageRegistry: ""
   imagePullPolicy: IfNotPresent
   eureka:
@@ -15,9 +18,19 @@ global:
     host: postgres
     port: "5432"
     username: loretta
-    password: loretta_secret
+    password: ""
+  internalJwt:
+    # Required. Signs short-lived service-to-service identity tokens.
+    secret: ""
+  redis:
+    password: ""
+  ai:
+    anthropicApiKey: ""
+    openaiApiKey: ""
+    deepgramApiKey: ""
   jwt:
-    secret: loretta-bank-jwt-secret-key-that-is-at-least-256-bits-long-for-hs256
+    # Required. Set with --set or an ExternalSecret; never commit real values.
+    secret: ""
   serviceUrls:
     customer: http://customer-service:8082
     account: http://account-service:8083
@@ -28,7 +41,7 @@ global:
   auth:
     bootstrapEnabled: "true"
     bootstrapAdminEmail: admin@lorettabank.co.za
-    bootstrapAdminPassword: AdminPass123!
+    bootstrapAdminPassword: ""
 
 # --- Infrastructure subcharts ---
 config:
@@ -201,3 +214,18 @@ frontend:
     limits:
       cpu: 250m
       memory: 256Mi
+
+ai-service:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: loretta-ai-service
+    tag: latest
+  port: 8090
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

@@ -14,14 +14,35 @@ spec:
       labels:
         {{- include "auth-service.selectorLabels" . | nindent 8 }}
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      automountServiceAccountToken: false
       containers:
         - name: auth-service
           image: {{ include "auth-service.image" . }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - name: http
               containerPort: {{ .Values.port }}
           env:
+            - name: INTERNAL_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: loretta-secrets
+                  key: INTERNAL_JWT_SECRET
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: loretta-secrets
+                  key: REDIS_PASSWORD
             {{- if .Values.usesDb }}
             - name: DB_URL
               value: jdbc:postgresql://{{ .Values.global.postgres.host }}:{{ .Values.global.postgres.port }}/{{ .Values.dbName }}

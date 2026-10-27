@@ -36,5 +36,8 @@ dependencies:
     version: 0.1.0
   - name: reporting-service
     version: 0.1.0
+  - name: ai-service
+    version: 0.1.0
+    condition: ai-service.enabled
   - name: frontend
     version: 0.1.0

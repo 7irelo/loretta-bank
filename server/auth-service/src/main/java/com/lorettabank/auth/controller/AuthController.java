@@ -78,6 +78,15 @@ public class AuthController {
     @PutMapping("/users/{id}/role")
     public ResponseEntity<UserResponse> updateUserRole(
             @PathVariable Long id, @Valid @RequestBody UpdateRoleRequest request) {
+        String actor =
+                String.valueOf(
+                        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                                .getAuthentication()
+                                .getPrincipal());
+        if (actor.equals(String.valueOf(id))) {
+            throw new com.lorettabank.shared.exception.ForbiddenException(
+                    "You cannot change your own role");
+        }
         UserResponse user = authService.updateUserRole(id, request);
         return ResponseEntity.ok(user);
     }

@@ -91,6 +91,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       REDIS_HOST: redis
       JWT_SECRET: ${JWT_SECRET:?run scripts/dev-secrets.sh}
+      AI_SERVICE_URL: http://ai-service:8090
     depends_on:
       discovery-service:
         condition: service_healthy
@@ -277,15 +278,41 @@ services:
       customer-service:
         condition: service_started
 
+  ai-service:
+    build:
+      context: ./ai
+    container_name: loretta-ai
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:?run scripts/dev-secrets.sh}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      CUSTOMER_SERVICE_URL: http://customer-service:8082
+      ACCOUNT_SERVICE_URL: http://account-service:8083
+      TRANSACTION_SERVICE_URL: http://transaction-service:8084
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
+    depends_on:
+      redis:
+        condition: service_healthy
+
   frontend:
     build:
       context: ./client
     container_name: loretta-frontend
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
     environment:
       NODE_ENV: production
       PORT: "3000"
+      # Server-side only: the browser never calls the gateway directly.
+      API_URL: http://api-gateway:8080
+      SESSION_SECRET: ${SESSION_SECRET:?run scripts/dev-secrets.sh}
     depends_on:
       api-gateway:
         condition: service_started

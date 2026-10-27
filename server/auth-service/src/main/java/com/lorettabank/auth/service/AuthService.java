@@ -218,6 +218,8 @@ public class AuthService {
                 .userId(user.getId())
                 .email(user.getEmail())
                 .role(user.getRole())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
                 .build();
     }
 
