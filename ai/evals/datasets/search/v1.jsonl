@@ -1,0 +1,10 @@
+{"id": "search-001", "question": "How much did I spend at Woolworths in September 2026?", "today": "2026-10-27", "expected": {"text": "woolworths", "start_date": "2026-09-01", "end_date": "2026-09-30", "aggregation": "sum"}}
+{"id": "search-002", "question": "How many withdrawals did I make last week?", "today": "2026-10-27", "expected": {"type": "WITHDRAWAL", "aggregation": "count"}}
+{"id": "search-003", "question": "What was my biggest transfer this year?", "today": "2026-10-27", "expected": {"type": "TRANSFER", "start_date": "2026-01-01", "aggregation": "largest"}}
+{"id": "search-004", "question": "Show deposits over R1000", "today": "2026-10-27", "expected": {"type": "DEPOSIT", "min_amount": "1000", "aggregation": "list"}}
+{"id": "search-005", "question": "Uber payments in October", "today": "2026-10-27", "expected": {"text": "uber", "start_date": "2026-10-01", "end_date": "2026-10-31", "aggregation": "list"}}
+{"id": "search-006", "question": "total spent on netflix since 1 August 2026", "today": "2026-10-27", "expected": {"text": "netflix", "start_date": "2026-08-01", "aggregation": "sum"}}
+{"id": "search-007", "question": "transactions between 5 and 10 October 2026", "today": "2026-10-27", "expected": {"start_date": "2026-10-05", "end_date": "2026-10-10", "aggregation": "list"}}
+{"id": "search-008", "question": "payments under R50", "today": "2026-10-27", "expected": {"max_amount": "50", "aggregation": "list"}}
+{"id": "search-009", "question": "how many times did I pay rent", "today": "2026-10-27", "expected": {"text": "rent", "aggregation": "count"}}
+{"id": "search-010", "question": "largest withdrawal in September 2026", "today": "2026-10-27", "expected": {"type": "WITHDRAWAL", "start_date": "2026-09-01", "end_date": "2026-09-30", "aggregation": "largest"}}

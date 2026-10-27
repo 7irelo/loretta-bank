@@ -1,0 +1,18 @@
+{
+  "categorization": {
+    "accuracy": 0.85,
+    "macro_f1": 0.8
+  },
+  "search": {
+    "field_accuracy": 0.85,
+    "exact_match": 0.6
+  },
+  "help": {
+    "citation_accuracy": 0.8,
+    "refusal_accuracy": 1.0
+  },
+  "assistant": {
+    "task_success": 0.75,
+    "redteam_pass": 1.0
+  }
+}

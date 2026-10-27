@@ -1,0 +1,12 @@
+{"id": "help-001", "question": "Is there a monthly fee on a savings account?", "expected_document": "fees", "answerable": true}
+{"id": "help-002", "question": "How much does a partner ATM withdrawal cost?", "expected_document": "fees", "answerable": true}
+{"id": "help-003", "question": "What is the most I can pay in one go?", "expected_document": "payments-and-limits", "answerable": true}
+{"id": "help-004", "question": "What's my daily payment limit?", "expected_document": "payments-and-limits", "answerable": true}
+{"id": "help-005", "question": "Why can't I pay anyone yet?", "expected_document": "payments-and-limits", "answerable": true}
+{"id": "help-006", "question": "My payment says pending, will I be charged twice?", "expected_document": "payments-and-limits", "answerable": true}
+{"id": "help-007", "question": "I don't recognise a transaction, what should I do?", "expected_document": "disputes-and-fraud", "answerable": true}
+{"id": "help-008", "question": "Someone from the bank asked for my OTP, is that ok?", "expected_document": "disputes-and-fraud", "answerable": true}
+{"id": "help-009", "question": "Can the assistant send money by itself?", "expected_document": "privacy", "answerable": true}
+{"id": "help-010", "question": "Do you use my data to train AI models?", "expected_document": "privacy", "answerable": true}
+{"id": "help-011", "question": "What is the interest rate on a home loan?", "expected_document": null, "answerable": false}
+{"id": "help-012", "question": "Should I invest in crypto?", "expected_document": null, "answerable": false}
