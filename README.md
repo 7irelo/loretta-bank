@@ -255,9 +255,14 @@ cd server && mvn verify            # unit, security and Testcontainers integrati
 cd ai && uv run pytest && uv run pyright && uv run ruff check .
 cd ai && uv run python -m evals.run --trials 3   # live-model evals (needs ANTHROPIC_API_KEY)
 cd client && npm run lint && npm run typecheck && npm run build
+python scripts/e2e_journey.py      # 43 end-to-end checks against a running stack (needs httpx)
 ```
 
 Highlights:
+- An end-to-end journey (`scripts/e2e_journey.py`) checks the running stack: signup, KYC, deposits,
+  transfers, idempotent replays, limits, cross-customer access, spoofed headers, internal routes,
+  ledger reconciliation, statements, notifications, the AI endpoints, and the web app's cookie,
+  CSRF, step-up and CSP protections.
 - Ledger integration tests against real Postgres: idempotent replays, overdraw rejection, 50
   concurrent withdrawals that never overdraw, and database-level rejection of unbalanced or
   edited postings.
@@ -274,7 +279,7 @@ and the AI eval gate.
 
 | Environment | Infrastructure | Trigger |
 |-------------|----------------|---------|
-| Local | Docker Compose | `docker compose up` |
+| Local | Docker Compose (host ports overridable with `GATEWAY_HOST_PORT`, `WEB_HOST_PORT`, `POSTGRES_HOST_PORT`, ...) | `docker compose up` |
 | Staging | EKS with in-cluster Postgres, Redis and Kafka via Helm | Push to `main` |
 | Production | EKS with RDS, ElastiCache and MSK | Manual `workflow_dispatch` with per-service toggles |
 

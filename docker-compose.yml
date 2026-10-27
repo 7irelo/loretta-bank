@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/dev-secrets.sh}
       POSTGRES_DB: loretta_auth
     ports:
-      - "127.0.0.1:5433:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
@@ -37,7 +37,7 @@ services:
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
-      - "127.0.0.1:9092:9092"
+      - "127.0.0.1:${KAFKA_HOST_PORT:-9092}:9092"
     healthcheck:
       test:
         [
@@ -56,7 +56,7 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
-      - "127.0.0.1:6380:6379"
+      - "127.0.0.1:${REDIS_HOST_PORT:-6380}:6379"
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping"]
       interval: 5s
@@ -71,7 +71,7 @@ services:
       dockerfile: discovery-service/Dockerfile
     container_name: loretta-discovery
     ports:
-      - "127.0.0.1:8761:8761"
+      - "127.0.0.1:${EUREKA_HOST_PORT:-8761}:8761"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://eureka:eureka@localhost:8761/actuator/health"]
       interval: 10s
@@ -84,7 +84,7 @@ services:
       dockerfile: api-gateway/Dockerfile
     container_name: loretta-gateway
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${GATEWAY_HOST_PORT:-8080}:8080"
     environment:
       EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
       INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:?run scripts/dev-secrets.sh}
@@ -303,7 +303,7 @@ services:
       context: ./client
     container_name: loretta-frontend
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${WEB_HOST_PORT:-3000}:3000"
     read_only: true
     tmpfs: ["/tmp"]
     security_opt: ["no-new-privileges:true"]
