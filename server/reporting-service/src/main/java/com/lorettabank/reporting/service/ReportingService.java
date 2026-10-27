@@ -20,8 +20,8 @@ import com.lorettabank.shared.exception.ResourceNotFoundException;
 import com.lorettabank.shared.security.JwtConstants;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -36,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class ReportingService {
 
+    private static final java.time.ZoneId BANK_ZONE = java.time.ZoneId.of("Africa/Johannesburg");
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
 
     private final StatementRepository statementRepository;
@@ -53,13 +54,14 @@ public class ReportingService {
         AccountView account = accountClient.getAccount(request.getAccountId(), userId, rolesHeader);
         authorizeAccountAccess(account, userId, roles, rolesHeader);
 
-        List<TransactionView> transactions =
-                transactionClient.getAllTransactionsForAccount(
-                        request.getAccountId(), userId, rolesHeader);
-
+        Instant from = request.getPeriodFrom().atZone(BANK_ZONE).toInstant();
+        Instant to = request.getPeriodTo().atZone(BANK_ZONE).toInstant();
         List<TransactionView> inPeriod =
-                transactions.stream()
-                        .filter(tx -> inPeriod(tx, request.getPeriodFrom(), request.getPeriodTo()))
+                transactionClient
+                        .getAllTransactionsForAccount(
+                                request.getAccountId(), from, to, userId, rolesHeader)
+                        .stream()
+                        .filter(tx -> "COMPLETED".equals(tx.getStatus()))
                         .sorted(Comparator.comparing(TransactionView::getCreatedAt))
                         .toList();
 
@@ -79,9 +81,12 @@ public class ReportingService {
                         .reduce(ZERO, BigDecimal::add)
                         .setScale(4, RoundingMode.HALF_UP);
 
-        BigDecimal closingBalance = safeScale(account.getBalance());
+        // Both balances come from the ledger's postings, so statements for any past period
+        // reconcile: opening + credits - debits = closing.
         BigDecimal openingBalance =
-                closingBalance.subtract(totalCredits).add(totalDebits).setScale(4, RoundingMode.HALF_UP);
+                safeScale(accountClient.getBalanceAt(account.getId(), from, userId, rolesHeader));
+        BigDecimal closingBalance =
+                safeScale(accountClient.getBalanceAt(account.getId(), to, userId, rolesHeader));
 
         StatementEntity entity =
                 StatementEntity.builder()
@@ -155,7 +160,8 @@ public class ReportingService {
         if (roles.contains(JwtConstants.ROLE_CUSTOMER)) {
             CustomerView customer = customerClient.getCurrentCustomer(userId, rolesHeader);
             if (!account.getCustomerId().equals(customer.getId())) {
-                throw new ForbiddenException("You can only access statements for your own accounts");
+                throw new ForbiddenException(
+                        "You can only access statements for your own accounts");
             }
             return;
         }
@@ -186,17 +192,6 @@ public class ReportingService {
         }
     }
 
-    private boolean inPeriod(
-            TransactionView transaction, LocalDateTime periodFrom, LocalDateTime periodTo) {
-        if (transaction.getCreatedAt() == null) {
-            return false;
-        }
-
-        LocalDateTime occurredAt =
-                LocalDateTime.ofInstant(transaction.getCreatedAt(), ZoneOffset.UTC);
-        return !occurredAt.isBefore(periodFrom) && !occurredAt.isAfter(periodTo);
-    }
-
     private StatementLineItem toLineItem(TransactionView transaction, Long accountId) {
         return StatementLineItem.builder()
                 .transactionId(transaction.getId())
@@ -224,7 +219,8 @@ public class ReportingService {
         return "CREDIT";
     }
 
-    private StatementResponse toResponse(StatementEntity entity, List<StatementLineItem> lineItems) {
+    private StatementResponse toResponse(
+            StatementEntity entity, List<StatementLineItem> lineItems) {
         return StatementResponse.builder()
                 .id(entity.getId())
                 .accountId(entity.getAccountId())

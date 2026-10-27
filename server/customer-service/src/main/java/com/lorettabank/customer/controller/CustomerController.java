@@ -38,8 +38,7 @@ public class CustomerController {
             @Valid @RequestBody CreateCustomerRequest request) {
         Long authenticatedUserId = getAuthenticatedUserId();
 
-        if (!hasRole(JwtConstants.ROLE_ADMIN)
-                && !request.getUserId().equals(authenticatedUserId)) {
+        if (!hasRole(JwtConstants.ROLE_ADMIN) && !request.getUserId().equals(authenticatedUserId)) {
             throw new ForbiddenException("You can only create a customer profile for yourself");
         }
 
@@ -90,19 +89,27 @@ public class CustomerController {
             throw new ForbiddenException("Only admins can update KYC status");
         }
 
-        KycStatus kycStatus = KycStatus.valueOf(status.toUpperCase());
+        KycStatus kycStatus;
+        try {
+            kycStatus = KycStatus.valueOf(status.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new com.lorettabank.shared.exception.BusinessException(
+                    "status must be one of PENDING, VERIFIED, REJECTED");
+        }
         CustomerResponse response = customerService.updateKycStatus(id, kycStatus);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping
     public ResponseEntity<PagedResponse<CustomerResponse>> listCustomers(
-            @PageableDefault(size = 20) Pageable pageable) {
+            @PageableDefault(size = 20) Pageable pageable,
+            @RequestParam(required = false) KycStatus kycStatus) {
         if (!hasRole(JwtConstants.ROLE_ADMIN) && !hasRole(JwtConstants.ROLE_SUPPORT)) {
             throw new ForbiddenException("Only admins and support can list all customers");
         }
 
-        PagedResponse<CustomerResponse> response = customerService.listCustomers(pageable);
+        PagedResponse<CustomerResponse> response =
+                customerService.listCustomers(pageable, kycStatus);
         return ResponseEntity.ok(response);
     }
 

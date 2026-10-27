@@ -20,5 +20,7 @@ public class TransferResponse {
     private BigDecimal amount;
     private String currency;
     private String description;
+    private String reference;
+    private String failureReason;
     private Instant createdAt;
 }

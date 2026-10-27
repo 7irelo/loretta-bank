@@ -36,7 +36,7 @@ public class Transaction {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
-    private TransactionStatus status = TransactionStatus.COMPLETED;
+    private TransactionStatus status = TransactionStatus.PENDING;
 
     @Column(name = "source_account_id")
     private Long sourceAccountId;
@@ -58,6 +58,25 @@ public class Transaction {
 
     @Column(name = "idempotency_key", unique = true, length = 255)
     private String idempotencyKey;
+
+    @Column(name = "source_customer_id")
+    private Long sourceCustomerId;
+
+    @Column(name = "target_customer_id")
+    private Long targetCustomerId;
+
+    @Column(name = "initiated_by", length = 64)
+    private String initiatedBy;
+
+    @Column(name = "failure_reason")
+    private String failureReason;
+
+    @Column(name = "journal_id")
+    private java.util.UUID journalId;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private int attempts = 0;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

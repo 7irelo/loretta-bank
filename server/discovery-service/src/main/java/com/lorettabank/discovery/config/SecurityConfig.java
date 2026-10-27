@@ -12,13 +12,16 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // Eureka clients register and heartbeat via POST/PUT without CSRF tokens.
-            .csrf(csrf -> csrf.ignoringRequestMatchers("/eureka/**"))
-            .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
-                .anyRequest().authenticated()
-            )
-            .httpBasic(Customizer.withDefaults());
+                // Eureka clients register and heartbeat via POST/PUT without CSRF tokens.
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/eureka/**"))
+                .authorizeHttpRequests(
+                        authorize ->
+                                authorize
+                                        .requestMatchers("/actuator/health", "/actuator/health/**")
+                                        .permitAll()
+                                        .anyRequest()
+                                        .authenticated())
+                .httpBasic(Customizer.withDefaults());
 
         return http.build();
     }

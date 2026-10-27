@@ -5,3 +5,4 @@ CREATE DATABASE loretta_transaction;
 CREATE DATABASE loretta_notification;
 CREATE DATABASE loretta_audit;
 CREATE DATABASE loretta_reporting;
+CREATE DATABASE loretta_ai;

@@ -18,9 +18,16 @@ public class CustomerClient {
         this.customerServiceWebClient = customerServiceWebClient;
     }
 
-    public Long resolveCurrentCustomerId(Long userId, String rolesHeader) {
+    public record CustomerSummary(Long id, Long userId, String kycStatus) {
+        public boolean verified() {
+            return "VERIFIED".equals(kycStatus);
+        }
+    }
+
+    public CustomerSummary currentCustomer(Long userId, String rolesHeader) {
         CustomerSummary summary =
-                customerServiceWebClient.get()
+                customerServiceWebClient
+                        .get()
                         .uri("/api/v1/customers/me")
                         .header(JwtConstants.HEADER_USER_ID, String.valueOf(userId))
                         .header(JwtConstants.HEADER_USER_ROLES, rolesHeader)
@@ -28,41 +35,19 @@ public class CustomerClient {
                         .onStatus(
                                 HttpStatusCode::isError,
                                 response ->
-                                        response.bodyToMono(String.class)
-                                                .flatMap(
-                                                        body ->
-                                                                Mono.error(
-                                                                        new BusinessException(
-                                                                                "Failed to resolve current customer: "
-                                                                                        + body))))
+                                        Mono.error(
+                                                new BusinessException(
+                                                        "Complete your customer profile first")))
                         .bodyToMono(CustomerSummary.class)
                         .block();
 
-        if (summary == null || summary.getId() == null) {
+        if (summary == null || summary.id() == null) {
             throw new BusinessException("Could not resolve current customer profile");
         }
-
-        return summary.getId();
+        return summary;
     }
 
-    private static class CustomerSummary {
-        private Long id;
-        private Long userId;
-
-        public Long getId() {
-            return id;
-        }
-
-        public void setId(Long id) {
-            this.id = id;
-        }
-
-        public Long getUserId() {
-            return userId;
-        }
-
-        public void setUserId(Long userId) {
-            this.userId = userId;
-        }
+    public Long resolveCurrentCustomerId(Long userId, String rolesHeader) {
+        return currentCustomer(userId, rolesHeader).id();
     }
 }

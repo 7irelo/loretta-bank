@@ -1,6 +1,5 @@
 package com.lorettabank.notification.consumer;
 
-import com.lorettabank.notification.entity.NotificationChannel;
 import com.lorettabank.notification.entity.NotificationType;
 import com.lorettabank.notification.service.NotificationService;
 import com.lorettabank.shared.event.AccountOpenedEvent;
@@ -11,6 +10,8 @@ import com.lorettabank.shared.event.MoneyDepositedEvent;
 import com.lorettabank.shared.event.MoneyWithdrawnEvent;
 import com.lorettabank.shared.event.TransferCompletedEvent;
 import com.lorettabank.shared.event.TransferFailedEvent;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -25,159 +26,104 @@ public class NotificationEventConsumer {
 
     @KafkaListener(topics = EventTopics.CUSTOMER_EVENTS)
     public void handleCustomerEvents(DomainEvent event) {
-        log.info("Received customer event: {}", event.getEventType());
-        if (event instanceof CustomerCreatedEvent customerEvent) {
-            handleCustomerCreated(customerEvent);
+        if (event instanceof CustomerCreatedEvent e && e.getUserId() != null) {
+            notificationService.rememberCustomer(
+                    e.getCustomerId(), e.getUserId(), e.getEmail(), e.getFirstName());
+            notificationService.notifyCustomer(
+                    e.getCustomerId(),
+                    NotificationType.CUSTOMER_CREATED,
+                    "Welcome to Loretta Bank",
+                    "Hi "
+                            + e.getFirstName()
+                            + ", your profile is set up. We'll let you know once your identity"
+                            + " has been verified.",
+                    e.getEventType(),
+                    e.getEventId());
         }
     }
 
     @KafkaListener(topics = EventTopics.ACCOUNT_EVENTS)
     public void handleAccountEvents(DomainEvent event) {
-        log.info("Received account event: {}", event.getEventType());
-        if (event instanceof AccountOpenedEvent accountEvent) {
-            handleAccountOpened(accountEvent);
-        }
-    }
-
-    @KafkaListener(topics = EventTopics.TRANSACTION_EVENTS)
-    public void handleTransactionEvents(DomainEvent event) {
-        log.info("Received transaction event: {}", event.getEventType());
-        if (event instanceof MoneyDepositedEvent depositEvent) {
-            handleMoneyDeposited(depositEvent);
-        } else if (event instanceof MoneyWithdrawnEvent withdrawEvent) {
-            handleMoneyWithdrawn(withdrawEvent);
+        if (event instanceof AccountOpenedEvent e) {
+            notificationService.notifyCustomer(
+                    e.getCustomerId(),
+                    NotificationType.ACCOUNT_OPENED,
+                    "New account opened",
+                    "Your new "
+                            + e.getAccountType().toLowerCase()
+                            + " account "
+                            + mask(e.getAccountNumber())
+                            + " is ready.",
+                    e.getEventType(),
+                    e.getEventId());
+        } else if (event instanceof MoneyDepositedEvent e) {
+            notificationService.notifyCustomer(
+                    e.getCustomerId(),
+                    NotificationType.DEPOSIT,
+                    "Deposit received",
+                    money(e.getAmount(), e.getCurrency())
+                            + " was deposited into "
+                            + mask(e.getAccountNumber())
+                            + ".",
+                    e.getEventType(),
+                    e.getEventId());
+        } else if (event instanceof MoneyWithdrawnEvent e) {
+            notificationService.notifyCustomer(
+                    e.getCustomerId(),
+                    NotificationType.WITHDRAWAL,
+                    "Withdrawal processed",
+                    money(e.getAmount(), e.getCurrency())
+                            + " was withdrawn from "
+                            + mask(e.getAccountNumber())
+                            + ".",
+                    e.getEventType(),
+                    e.getEventId());
         }
     }
 
     @KafkaListener(topics = EventTopics.TRANSFER_EVENTS)
     public void handleTransferEvents(DomainEvent event) {
-        log.info("Received transfer event: {}", event.getEventType());
-        if (event instanceof TransferCompletedEvent transferEvent) {
-            handleTransferCompleted(transferEvent);
-        } else if (event instanceof TransferFailedEvent failedEvent) {
-            handleTransferFailed(failedEvent);
+        if (event instanceof TransferCompletedEvent e) {
+            notificationService.notifyCustomer(
+                    e.getSourceCustomerId(),
+                    NotificationType.TRANSFER_COMPLETED,
+                    "Payment sent",
+                    "Your payment of " + money(e.getAmount(), e.getCurrency()) + " was successful.",
+                    e.getEventType(),
+                    e.getEventId());
+            if (e.getTargetCustomerId() != null
+                    && !e.getTargetCustomerId().equals(e.getSourceCustomerId())) {
+                notificationService.notifyCustomer(
+                        e.getTargetCustomerId(),
+                        NotificationType.TRANSFER_COMPLETED,
+                        "Payment received",
+                        "You received " + money(e.getAmount(), e.getCurrency()) + ".",
+                        e.getEventType(),
+                        e.getEventId());
+            }
+        } else if (event instanceof TransferFailedEvent e) {
+            notificationService.notifyCustomer(
+                    e.getSourceCustomerId(),
+                    NotificationType.TRANSFER_FAILED,
+                    "Payment failed",
+                    "Your payment of "
+                            + money(e.getAmount(), e.getCurrency())
+                            + " could not be completed: "
+                            + e.getReason(),
+                    e.getEventType(),
+                    e.getEventId());
         }
     }
 
-    private void handleCustomerCreated(CustomerCreatedEvent event) {
-        String subject = "Welcome to Loretta Bank";
-        String body =
-                String.format(
-                        "Dear %s %s, welcome to Loretta Bank! Your account has been created successfully.",
-                        event.getFirstName(), event.getLastName());
-
-        notificationService.createAndSendNotification(
-                event.getCustomerId(),
-                NotificationType.CUSTOMER_CREATED,
-                NotificationChannel.EMAIL,
-                event.getEmail(),
-                subject,
-                body,
-                event.getEventType(),
-                event.getEventId());
+    private static String money(BigDecimal amount, String currency) {
+        String symbol = "ZAR".equals(currency) ? "R" : currency + " ";
+        return symbol + amount.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
-    private void handleAccountOpened(AccountOpenedEvent event) {
-        String subject = "New Account Opened";
-        String body =
-                String.format(
-                        "Your new %s account %s has been opened with an initial balance of %s %s.",
-                        event.getAccountType(),
-                        event.getAccountNumber(),
-                        event.getInitialBalance(),
-                        event.getCurrency());
-
-        notificationService.createAndSendNotification(
-                event.getCustomerId(),
-                NotificationType.ACCOUNT_OPENED,
-                NotificationChannel.EMAIL,
-                String.valueOf(event.getCustomerId()),
-                subject,
-                body,
-                event.getEventType(),
-                event.getEventId());
-    }
-
-    private void handleMoneyDeposited(MoneyDepositedEvent event) {
-        String subject = "Deposit Received";
-        String body =
-                String.format(
-                        "Deposit of %s %s to account %s. New balance: %s %s.",
-                        event.getAmount(),
-                        event.getCurrency(),
-                        event.getAccountNumber(),
-                        event.getNewBalance(),
-                        event.getCurrency());
-
-        notificationService.createAndSendNotification(
-                null,
-                NotificationType.DEPOSIT,
-                NotificationChannel.EMAIL,
-                String.valueOf(event.getAccountId()),
-                subject,
-                body,
-                event.getEventType(),
-                event.getEventId());
-    }
-
-    private void handleMoneyWithdrawn(MoneyWithdrawnEvent event) {
-        String subject = "Withdrawal Processed";
-        String body =
-                String.format(
-                        "Withdrawal of %s %s from account %s. New balance: %s %s.",
-                        event.getAmount(),
-                        event.getCurrency(),
-                        event.getAccountNumber(),
-                        event.getNewBalance(),
-                        event.getCurrency());
-
-        notificationService.createAndSendNotification(
-                null,
-                NotificationType.WITHDRAWAL,
-                NotificationChannel.EMAIL,
-                String.valueOf(event.getAccountId()),
-                subject,
-                body,
-                event.getEventType(),
-                event.getEventId());
-    }
-
-    private void handleTransferCompleted(TransferCompletedEvent event) {
-        String subject = "Transfer Completed";
-        String body =
-                String.format(
-                        "Transfer of %s %s completed successfully. Transfer ID: %s.",
-                        event.getAmount(), event.getCurrency(), event.getTransferId());
-
-        notificationService.createAndSendNotification(
-                null,
-                NotificationType.TRANSFER_COMPLETED,
-                NotificationChannel.EMAIL,
-                String.valueOf(event.getSourceAccountId()),
-                subject,
-                body,
-                event.getEventType(),
-                event.getEventId());
-    }
-
-    private void handleTransferFailed(TransferFailedEvent event) {
-        String subject = "Transfer Failed";
-        String body =
-                String.format(
-                        "Transfer of %s %s failed: %s. Transfer ID: %s.",
-                        event.getAmount(),
-                        event.getCurrency(),
-                        event.getReason(),
-                        event.getTransferId());
-
-        notificationService.createAndSendNotification(
-                null,
-                NotificationType.TRANSFER_FAILED,
-                NotificationChannel.EMAIL,
-                String.valueOf(event.getSourceAccountId()),
-                subject,
-                body,
-                event.getEventType(),
-                event.getEventId());
+    private static String mask(String accountNumber) {
+        if (accountNumber == null || accountNumber.length() < 4) {
+            return "your account";
+        }
+        return "account ending " + accountNumber.substring(accountNumber.length() - 4);
     }
 }

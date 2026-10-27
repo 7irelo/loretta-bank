@@ -5,7 +5,6 @@ import com.lorettabank.transaction.dto.TransactionResponse;
 import com.lorettabank.transaction.dto.TransferResponse;
 import com.lorettabank.transaction.entity.LedgerEntry;
 import com.lorettabank.transaction.entity.Transaction;
-import com.lorettabank.transaction.entity.TransferSaga;
 import java.util.List;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -29,6 +28,5 @@ public interface TransactionMapper {
     List<LedgerEntryResponse> toLedgerEntryResponseList(List<LedgerEntry> entries);
 
     @Mapping(target = "transferId", source = "id")
-    @Mapping(target = "status", expression = "java(saga.getStatus().name())")
-    TransferResponse toTransferResponse(TransferSaga saga);
+    TransferResponse toTransferResponse(TransactionResponse transaction);
 }

@@ -6,6 +6,7 @@ import com.lorettabank.customer.repository.OutboxEventRepository;
 import com.lorettabank.shared.event.DomainEvent;
 import com.lorettabank.shared.event.EventTopics;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -18,28 +19,46 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class OutboxPublisher {
 
+    private static final int BATCH_SIZE = 100;
+
     private final OutboxEventRepository outboxEventRepository;
     private final KafkaTemplate<String, DomainEvent> kafkaTemplate;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Claims a batch with {@code FOR UPDATE SKIP LOCKED}, so several replicas can run this
+     * concurrently without publishing the same row twice. A failed send stops the batch to keep
+     * per-aggregate ordering; the row is retried on the next tick.
+     */
     @Scheduled(fixedDelay = 1000)
     @Transactional
     public void publishPendingEvents() {
-        List<OutboxEvent> unpublished = outboxEventRepository.findByPublishedFalse();
-        if (unpublished.isEmpty()) {
-            return;
-        }
-
-        for (OutboxEvent event : unpublished) {
+        List<OutboxEvent> batch = outboxEventRepository.claimBatch(BATCH_SIZE);
+        for (OutboxEvent outboxEvent : batch) {
             try {
-                DomainEvent domainEvent = objectMapper.readValue(event.getPayload(), DomainEvent.class);
-                kafkaTemplate.send(EventTopics.CUSTOMER_EVENTS, event.getAggregateId(), domainEvent).get();
-
-                event.setPublished(true);
-                outboxEventRepository.save(event);
+                DomainEvent event =
+                        objectMapper.readValue(outboxEvent.getPayload(), DomainEvent.class);
+                kafkaTemplate
+                        .send(EventTopics.CUSTOMER_EVENTS, outboxEvent.getAggregateId(), event)
+                        .get(10, TimeUnit.SECONDS);
+                outboxEvent.setPublished(true);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
             } catch (Exception e) {
-                log.error("Error publishing customer outbox event {}: {}", event.getId(), e.getMessage());
+                log.error(
+                        "Failed to publish outbox event {}: {}",
+                        outboxEvent.getId(),
+                        e.getMessage());
+                return;
             }
         }
+    }
+
+    @Scheduled(cron = "0 30 3 * * *")
+    @Transactional
+    public void prune() {
+        int pruned = outboxEventRepository.deletePublishedOlderThanDays(7);
+        log.info("Pruned {} published outbox events", pruned);
     }
 }

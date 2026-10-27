@@ -37,8 +37,7 @@ class AccountRepositoryIntegrationTest {
         registry.add("spring.flyway.enabled", () -> true);
     }
 
-    @Autowired
-    private AccountRepository accountRepository;
+    @Autowired private AccountRepository accountRepository;
 
     @Test
     void shouldPersistAndLoadAccountByAccountNumber() {

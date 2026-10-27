@@ -23,7 +23,7 @@ public class TransactionResponse {
     private String currency;
     private String description;
     private String reference;
-    private String idempotencyKey;
+    private String failureReason;
     private Instant createdAt;
     private Instant updatedAt;
     private List<LedgerEntryResponse> ledgerEntries;

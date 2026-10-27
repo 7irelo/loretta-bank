@@ -1,30 +1,38 @@
 package com.lorettabank.transaction.config;
 
+import com.lorettabank.shared.security.InternalTokenPropagation;
+import com.lorettabank.shared.security.InternalTokenService;
+import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
 
 @Configuration
 public class WebClientConfig {
 
-    @Value("${account-service.url}")
-    private String accountServiceUrl;
-
-    @Value("${customer-service.url}")
-    private String customerServiceUrl;
-
     @Bean
-    public WebClient accountServiceWebClient() {
-        return WebClient.builder()
-                .baseUrl(accountServiceUrl)
-                .build();
+    public WebClient accountServiceWebClient(
+            @Value("${account-service.url}") String accountServiceUrl,
+            InternalTokenService tokens) {
+        return build(accountServiceUrl, tokens);
     }
 
     @Bean
-    public WebClient customerServiceWebClient() {
+    public WebClient customerServiceWebClient(
+            @Value("${customer-service.url}") String customerServiceUrl,
+            InternalTokenService tokens) {
+        return build(customerServiceUrl, tokens);
+    }
+
+    private static WebClient build(String baseUrl, InternalTokenService tokens) {
+        HttpClient httpClient = HttpClient.create().responseTimeout(Duration.ofSeconds(5));
         return WebClient.builder()
-                .baseUrl(customerServiceUrl)
+                .baseUrl(baseUrl)
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .filter(InternalTokenPropagation.webClientFilter(tokens))
                 .build();
     }
 }

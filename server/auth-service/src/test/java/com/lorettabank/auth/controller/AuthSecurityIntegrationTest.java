@@ -20,17 +20,20 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(AuthController.class)
-@Import(AuthSecurityConfig.class)
+@Import({AuthSecurityConfig.class, com.lorettabank.shared.security.InternalTokenConfig.class})
+@org.springframework.test.context.TestPropertySource(
+        properties = "internal.jwt.secret=test-internal-secret-that-is-long-enough-0123456789")
 class AuthSecurityIntegrationTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @Autowired private MockMvc mockMvc;
 
-    @MockBean
-    private AuthService authService;
+    @MockBean private AuthService authService;
 
-    @MockBean
-    private JwtService jwtService;
+    @MockBean private JwtService jwtService;
+
+    @MockBean private com.lorettabank.auth.repository.UserRepository userRepository;
+
+    @Autowired private com.lorettabank.shared.security.InternalTokenService tokens;
 
     @Test
     void registerShouldBeAccessibleWithoutAuthentication() throws Exception {
@@ -70,8 +73,28 @@ class AuthSecurityIntegrationTest {
 
         mockMvc.perform(
                         get("/api/v1/auth/users")
+                                .header(
+                                        "X-Internal-Token",
+                                        tokens.mint("99", java.util.List.of("ADMIN"), null)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void usersEndpointShouldIgnoreRawGatewayHeaders() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/auth/users")
                                 .header("X-User-Id", "99")
                                 .header("X-User-Roles", "ADMIN"))
-                .andExpect(status().isOk());
+                .andExpect(status().is4xxClientError());
+    }
+
+    @Test
+    void customerCannotListUsers() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/auth/users")
+                                .header(
+                                        "X-Internal-Token",
+                                        tokens.mint("5", java.util.List.of("CUSTOMER"), null)))
+                .andExpect(status().isForbidden());
     }
 }

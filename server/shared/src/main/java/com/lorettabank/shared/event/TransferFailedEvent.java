@@ -17,6 +17,8 @@ public class TransferFailedEvent extends DomainEvent {
     private String transferId;
     private Long sourceAccountId;
     private Long targetAccountId;
+    private Long sourceCustomerId;
+    private Long targetCustomerId;
     private BigDecimal amount;
     private String currency;
     private String reason;

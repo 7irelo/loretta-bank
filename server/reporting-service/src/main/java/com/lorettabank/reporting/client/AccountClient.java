@@ -19,7 +19,8 @@ public class AccountClient {
     }
 
     public AccountView getAccount(Long accountId, Long userId, String rolesHeader) {
-        return accountServiceWebClient.get()
+        return accountServiceWebClient
+                .get()
                 .uri("/api/v1/accounts/{id}", accountId)
                 .header(JwtConstants.HEADER_USER_ID, String.valueOf(userId))
                 .header(JwtConstants.HEADER_USER_ROLES, rolesHeader)
@@ -33,10 +34,35 @@ public class AccountClient {
                                                         Mono.error(
                                                                 new BusinessException(
                                                                         "Failed to fetch account "
-                                                                                + accountId
-                                                                                + ": "
-                                                                                + body))))
+                                                                                + accountId))))
                 .bodyToMono(AccountView.class)
                 .block();
     }
+
+    public java.math.BigDecimal getBalanceAt(
+            Long accountId, java.time.Instant at, Long userId, String rolesHeader) {
+        BalanceAt result =
+                accountServiceWebClient
+                        .get()
+                        .uri(
+                                b ->
+                                        b.path("/api/v1/accounts/{id}/balance")
+                                                .queryParam("at", at.toString())
+                                                .build(accountId))
+                        .header(JwtConstants.HEADER_USER_ID, String.valueOf(userId))
+                        .header(JwtConstants.HEADER_USER_ROLES, rolesHeader)
+                        .retrieve()
+                        .onStatus(
+                                HttpStatusCode::isError,
+                                response ->
+                                        Mono.error(
+                                                new BusinessException(
+                                                        "Failed to fetch balance for account "
+                                                                + accountId)))
+                        .bodyToMono(BalanceAt.class)
+                        .block();
+        return result == null ? java.math.BigDecimal.ZERO : result.balance();
+    }
+
+    private record BalanceAt(java.math.BigDecimal balance) {}
 }

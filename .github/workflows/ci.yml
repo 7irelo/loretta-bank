@@ -1,8 +1,13 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -39,7 +44,9 @@ jobs:
       DB_PASSWORD: loretta_secret
       KAFKA_BOOTSTRAP_SERVERS: localhost:9092
       REDIS_HOST: localhost
-      JWT_SECRET: loretta-bank-jwt-secret-key-that-is-at-least-256-bits-long-for-hs256
+      # Throwaway values for CI only; real secrets come from the environment's secret store.
+      JWT_SECRET: ci-only-jwt-secret-0123456789abcdef0123456789abcdef
+      INTERNAL_JWT_SECRET: ci-only-internal-secret-0123456789abcdef0123456789
 
     steps:
       - name: Checkout

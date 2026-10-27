@@ -15,6 +15,7 @@ import lombok.experimental.SuperBuilder;
 public class MoneyDepositedEvent extends DomainEvent {
 
     private Long accountId;
+    private Long customerId;
     private String accountNumber;
     private BigDecimal amount;
     private String currency;

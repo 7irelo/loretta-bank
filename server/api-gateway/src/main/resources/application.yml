@@ -64,12 +64,13 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_URL:http://eureka:eureka@localhost:8761/eureka}
 jwt:
-  secret: ${JWT_SECRET:loretta-bank-jwt-secret-key-that-is-at-least-256-bits-long-for-hs256}
+  secret: ${JWT_SECRET}
 management:
   endpoint:
     health:
@@ -100,3 +101,6 @@ springdoc:
         url: /api/v1/audit/v3/api-docs
       - name: reporting-service
         url: /api/v1/reports/v3/api-docs
+internal:
+  jwt:
+    secret: ${INTERNAL_JWT_SECRET}

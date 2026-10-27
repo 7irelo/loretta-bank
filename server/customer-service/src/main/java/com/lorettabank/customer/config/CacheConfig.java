@@ -65,8 +65,6 @@ public class CacheConfig {
                                         jsonSerializer))
                         .disableCachingNullValues();
 
-        return RedisCacheManager.builder(connectionFactory)
-                .cacheDefaults(config)
-                .build();
+        return RedisCacheManager.builder(connectionFactory).cacheDefaults(config).build();
     }
 }

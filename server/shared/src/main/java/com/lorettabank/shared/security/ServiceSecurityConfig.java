@@ -1,6 +1,5 @@
 package com.lorettabank.shared.security;
 
-import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -9,7 +8,6 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
 
 @Configuration
 @EnableWebSecurity
@@ -17,24 +15,22 @@ import org.springframework.web.cors.CorsConfiguration;
 public class ServiceSecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http, InternalTokenService internalTokenService) throws Exception {
+        // Services are only called by the gateway and by peers, never by browsers, so CORS is
+        // left disabled and browser cross-origin calls are rejected.
         http.csrf(csrf -> csrf.disable())
-                .cors(
-                        cors ->
-                                cors.configurationSource(
-                                        request -> {
-                                            CorsConfiguration config = new CorsConfiguration();
-                                            config.setAllowedOrigins(List.of("*"));
-                                            config.setAllowedMethods(List.of("*"));
-                                            config.setAllowedHeaders(List.of("*"));
-                                            return config;
-                                        }))
+                .cors(cors -> cors.disable())
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(
                         auth ->
-                                auth.requestMatchers(
-                                                "/actuator/**",
+                                auth.requestMatchers("/internal/**")
+                                        .hasRole(JwtConstants.ROLE_SERVICE)
+                                        .requestMatchers(
+                                                "/actuator/health/**",
+                                                "/actuator/info",
+                                                "/actuator/prometheus",
                                                 "/v3/api-docs/**",
                                                 "/api/v1/*/v3/api-docs/**",
                                                 "/swagger-ui/**",
@@ -45,7 +41,8 @@ public class ServiceSecurityConfig {
                                         .anyRequest()
                                         .authenticated())
                 .addFilterBefore(
-                        new GatewayAuthFilter(), UsernamePasswordAuthenticationFilter.class);
+                        new GatewayAuthFilter(internalTokenService),
+                        UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 }

@@ -4,11 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.lorettabank.transaction.entity.EntryType;
 import com.lorettabank.transaction.entity.LedgerEntry;
-import com.lorettabank.transaction.entity.SagaStatus;
 import com.lorettabank.transaction.entity.Transaction;
 import com.lorettabank.transaction.entity.TransactionStatus;
 import com.lorettabank.transaction.entity.TransactionType;
-import com.lorettabank.transaction.entity.TransferSaga;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -43,37 +41,9 @@ class TransactionPersistenceIntegrationTest {
         registry.add("spring.flyway.enabled", () -> true);
     }
 
-    @Autowired
-    private TransferSagaRepository transferSagaRepository;
+    @Autowired private TransactionRepository transactionRepository;
 
-    @Autowired
-    private TransactionRepository transactionRepository;
-
-    @Autowired
-    private LedgerEntryRepository ledgerEntryRepository;
-
-    @Test
-    void shouldPersistAndLoadSagaByIdempotencyKey() {
-        TransferSaga saga =
-                TransferSaga.builder()
-                        .id(UUID.randomUUID().toString())
-                        .idempotencyKey("idem-transfer-001")
-                        .sourceAccountId(101L)
-                        .targetAccountId(202L)
-                        .amount(new BigDecimal("1200.0000"))
-                        .currency("ZAR")
-                        .description("Integration transfer")
-                        .status(SagaStatus.INITIATED)
-                        .build();
-
-        transferSagaRepository.save(saga);
-
-        assertThat(transferSagaRepository.findByIdempotencyKey("idem-transfer-001"))
-                .isPresent()
-                .get()
-                .extracting(TransferSaga::getSourceAccountId)
-                .isEqualTo(101L);
-    }
+    @Autowired private LedgerEntryRepository ledgerEntryRepository;
 
     @Test
     void shouldPersistTransactionAndLedgerEntries() {

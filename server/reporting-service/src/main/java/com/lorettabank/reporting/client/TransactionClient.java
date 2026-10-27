@@ -27,14 +27,18 @@ public class TransactionClient {
     }
 
     public List<TransactionView> getAllTransactionsForAccount(
-            Long accountId, Long userId, String rolesHeader) {
+            Long accountId,
+            java.time.Instant from,
+            java.time.Instant to,
+            Long userId,
+            String rolesHeader) {
         int page = 0;
         boolean last = false;
         List<TransactionView> aggregated = new java.util.ArrayList<>();
 
         while (!last && page < MAX_PAGES) {
             PagedResponseView<TransactionView> response =
-                    fetchPage(accountId, page, PAGE_SIZE, userId, rolesHeader);
+                    fetchPage(accountId, from, to, page, PAGE_SIZE, userId, rolesHeader);
             if (response.getContent() != null) {
                 aggregated.addAll(response.getContent());
             }
@@ -46,14 +50,24 @@ public class TransactionClient {
     }
 
     private PagedResponseView<TransactionView> fetchPage(
-            Long accountId, int page, int size, Long userId, String rolesHeader) {
+            Long accountId,
+            java.time.Instant from,
+            java.time.Instant to,
+            int page,
+            int size,
+            Long userId,
+            String rolesHeader) {
         PagedResponseView<TransactionView> response =
-                transactionServiceWebClient.get()
+                transactionServiceWebClient
+                        .get()
                         .uri(
                                 uriBuilder ->
-                                        uriBuilder.path("/api/v1/transactions/account/{accountId}")
+                                        uriBuilder
+                                                .path("/api/v1/transactions/account/{accountId}")
                                                 .queryParam("page", page)
                                                 .queryParam("size", size)
+                                                .queryParam("from", from.toString())
+                                                .queryParam("to", to.toString())
                                                 .build(accountId))
                         .header(JwtConstants.HEADER_USER_ID, String.valueOf(userId))
                         .header(JwtConstants.HEADER_USER_ROLES, rolesHeader)
@@ -68,9 +82,7 @@ public class TransactionClient {
                                                                 Mono.error(
                                                                         new BusinessException(
                                                                                 "Failed to fetch transactions for account "
-                                                                                        + accountId
-                                                                                        + ": "
-                                                                                        + body))))
+                                                                                        + accountId))))
                         .bodyToMono(
                                 new ParameterizedTypeReference<
                                         PagedResponseView<TransactionView>>() {})

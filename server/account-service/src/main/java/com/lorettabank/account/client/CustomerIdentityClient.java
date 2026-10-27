@@ -15,10 +15,11 @@ public class CustomerIdentityClient {
         this.customerServiceRestClient = customerServiceRestClient;
     }
 
-    public Long resolveCurrentCustomerId(Long userId, String rolesHeader) {
+    public CustomerSummary currentCustomer(Long userId, String rolesHeader) {
         try {
             CustomerSummary response =
-                    customerServiceRestClient.get()
+                    customerServiceRestClient
+                            .get()
                             .uri("/api/v1/customers/me")
                             .header(JwtConstants.HEADER_USER_ID, String.valueOf(userId))
                             .header(JwtConstants.HEADER_USER_ROLES, rolesHeader)
@@ -27,12 +28,19 @@ public class CustomerIdentityClient {
             if (response == null || response.id() == null) {
                 throw new BusinessException("Could not resolve current customer profile");
             }
-            return response.id();
+            return response;
         } catch (RestClientException e) {
-            throw new BusinessException(
-                    "Failed to resolve current customer profile: " + e.getMessage());
+            throw new BusinessException("Complete your customer profile first");
         }
     }
 
-    private record CustomerSummary(Long id, Long userId) {}
+    public Long resolveCurrentCustomerId(Long userId, String rolesHeader) {
+        return currentCustomer(userId, rolesHeader).id();
+    }
+
+    public record CustomerSummary(Long id, Long userId, String kycStatus) {
+        public boolean verified() {
+            return "VERIFIED".equals(kycStatus);
+        }
+    }
 }

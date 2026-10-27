@@ -1,5 +1,6 @@
 package com.lorettabank.customer.dto;
 
+import com.lorettabank.shared.validation.SaIdNumber;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -37,6 +38,8 @@ public class CreateCustomerRequest {
     private String phoneNumber;
 
     @Size(max = 50, message = "ID number must not exceed 50 characters")
+    @NotBlank(message = "ID number is required")
+    @SaIdNumber
     private String idNumber;
 
     @Past(message = "Date of birth must be in the past")

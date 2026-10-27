@@ -1,12 +1,13 @@
 package com.lorettabank.account.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lorettabank.account.entity.OutboxEvent;
+import com.lorettabank.account.ledger.LedgerService;
 import com.lorettabank.account.repository.OutboxEventRepository;
 import com.lorettabank.shared.event.DomainEvent;
 import com.lorettabank.shared.event.EventTopics;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -19,59 +20,48 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class OutboxPublisher {
 
+    private static final int BATCH_SIZE = 100;
+
     private final OutboxEventRepository outboxEventRepository;
     private final KafkaTemplate<String, DomainEvent> kafkaTemplate;
     private final ObjectMapper objectMapper;
+    private final LedgerService ledgerService;
 
+    /**
+     * Claims a batch with {@code FOR UPDATE SKIP LOCKED}, so several replicas can run this
+     * concurrently without publishing the same row twice. A failed send stops the batch to keep
+     * per-aggregate ordering; the row is retried on the next tick.
+     */
     @Scheduled(fixedDelay = 1000)
     @Transactional
     public void publishPendingEvents() {
-        List<OutboxEvent> unpublished = outboxEventRepository.findByPublishedFalse();
-
-        for (OutboxEvent outboxEvent : unpublished) {
+        List<OutboxEvent> batch = outboxEventRepository.claimBatch(BATCH_SIZE);
+        for (OutboxEvent outboxEvent : batch) {
             try {
-                DomainEvent domainEvent =
+                DomainEvent event =
                         objectMapper.readValue(outboxEvent.getPayload(), DomainEvent.class);
-
-                String topic = resolveTopicForEventType(outboxEvent.getEventType());
-
-                kafkaTemplate.send(topic, outboxEvent.getAggregateId(), domainEvent).get();
-
+                kafkaTemplate
+                        .send(EventTopics.ACCOUNT_EVENTS, outboxEvent.getAggregateId(), event)
+                        .get(10, TimeUnit.SECONDS);
                 outboxEvent.setPublished(true);
-                outboxEventRepository.save(outboxEvent);
-
-                log.debug(
-                        "Published outbox event {} (type: {}) to topic {}",
-                        outboxEvent.getId(),
-                        outboxEvent.getEventType(),
-                        topic);
-            } catch (JsonProcessingException e) {
-                log.error(
-                        "Failed to deserialize outbox event {}: {}",
-                        outboxEvent.getId(),
-                        e.getMessage(),
-                        e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
             } catch (Exception e) {
                 log.error(
                         "Failed to publish outbox event {}: {}",
                         outboxEvent.getId(),
-                        e.getMessage(),
-                        e);
+                        e.getMessage());
+                return;
             }
-        }
-
-        if (!unpublished.isEmpty()) {
-            log.info("Published {} outbox events", unpublished.size());
         }
     }
 
-    private String resolveTopicForEventType(String eventType) {
-        return switch (eventType) {
-            case "ACCOUNT_OPENED", "MONEY_DEPOSITED", "MONEY_WITHDRAWN" ->
-                    EventTopics.ACCOUNT_EVENTS;
-            case "TRANSFER_INITIATED", "TRANSFER_COMPLETED", "TRANSFER_FAILED" ->
-                    EventTopics.TRANSFER_EVENTS;
-            default -> EventTopics.ACCOUNT_EVENTS;
-        };
+    @Scheduled(cron = "0 30 3 * * *")
+    @Transactional
+    public void pruneAndReconcile() {
+        int pruned = outboxEventRepository.deletePublishedOlderThanDays(7);
+        log.info("Pruned {} published outbox events", pruned);
+        ledgerService.reconcile();
     }
 }

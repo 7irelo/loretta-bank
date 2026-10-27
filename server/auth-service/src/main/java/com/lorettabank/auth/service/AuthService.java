@@ -29,6 +29,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
     private static final String BLACKLIST_PREFIX = "token:blacklist:";
+    private static final String LOGIN_FAILURES_PREFIX = "login:failures:";
+    private static final int MAX_LOGIN_FAILURES = 5;
+    private static final long LOCKOUT_MINUTES = 15;
+
+    /** Compared against when the email is unknown, so response time does not reveal accounts. */
+    private static final String DUMMY_HASH =
+            "$2a$10$7EqJtq98hPqEX7fNZaFWoO5yJbG2f1cE4Q8e1rZ0Yp9YxQ0yQyG6e";
 
     private final UserRepository userRepository;
     private final JwtService jwtService;
@@ -37,9 +44,9 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        request.setEmail(request.getEmail().trim().toLowerCase());
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new DuplicateResourceException(
-                    "User with email " + request.getEmail() + " already exists");
+            throw new DuplicateResourceException("An account with this email already exists");
         }
 
         UserEntity user =
@@ -53,27 +60,36 @@ public class AuthService {
                         .build();
 
         user = userRepository.save(user);
-        log.info("User registered successfully with email: {}", user.getEmail());
+        log.info("User {} registered", user.getId());
 
         return buildAuthResponse(user);
     }
 
     public AuthResponse login(LoginRequest request) {
-        UserEntity user =
-                userRepository
-                        .findByEmail(request.getEmail())
-                        .orElseThrow(
-                                () -> new UnauthorizedException("Invalid email or password"));
-
-        if (!user.isEnabled()) {
-            throw new UnauthorizedException("Account is disabled");
+        String email = request.getEmail().trim().toLowerCase();
+        String failuresKey = LOGIN_FAILURES_PREFIX + email;
+        String failures = redisTemplate.opsForValue().get(failuresKey);
+        if (failures != null && Integer.parseInt(failures) >= MAX_LOGIN_FAILURES) {
+            throw new UnauthorizedException(
+                    "Too many failed sign-in attempts. Try again in "
+                            + LOCKOUT_MINUTES
+                            + " minutes.");
         }
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+        UserEntity user = userRepository.findByEmail(email).orElse(null);
+        String hash = user != null ? user.getPasswordHash() : DUMMY_HASH;
+        boolean passwordOk = passwordEncoder.matches(request.getPassword(), hash);
+
+        if (user == null || !passwordOk || !user.isEnabled()) {
+            Long count = redisTemplate.opsForValue().increment(failuresKey);
+            if (count != null && count == 1) {
+                redisTemplate.expire(failuresKey, LOCKOUT_MINUTES, TimeUnit.MINUTES);
+            }
             throw new UnauthorizedException("Invalid email or password");
         }
+        redisTemplate.delete(failuresKey);
 
-        log.info("User logged in successfully: {}", user.getEmail());
+        log.info("User {} signed in", user.getId());
         return buildAuthResponse(user);
     }
 
@@ -92,21 +108,28 @@ public class AuthService {
 
         String jti = jwtService.extractJti(claims);
         if (isTokenBlacklisted(jti)) {
+            log.warn("Revoked refresh token reused for user {}", claims.getSubject());
             throw new UnauthorizedException("Refresh token has been revoked");
+        }
+        // Rotation: each refresh token works once.
+        long remainingMs = claims.getExpiration().getTime() - System.currentTimeMillis();
+        if (remainingMs > 0) {
+            redisTemplate
+                    .opsForValue()
+                    .set(BLACKLIST_PREFIX + jti, "rotated", remainingMs, TimeUnit.MILLISECONDS);
         }
 
         Long userId = Long.parseLong(jwtService.extractUserId(claims));
         UserEntity user =
                 userRepository
                         .findById(userId)
-                        .orElseThrow(
-                                () -> new UnauthorizedException("User not found"));
+                        .orElseThrow(() -> new UnauthorizedException("User not found"));
 
         if (!user.isEnabled()) {
             throw new UnauthorizedException("Account is disabled");
         }
 
-        log.info("Token refreshed for user: {}", user.getEmail());
+        log.info("Token refreshed for user {}", user.getId());
         return buildAuthResponse(user);
     }
 
@@ -162,10 +185,7 @@ public class AuthService {
     @Transactional
     public UserResponse updateUserRole(Long id, UpdateRoleRequest request) {
         String normalizedRole = request.getRole().toUpperCase();
-        if (!List.of(
-                        JwtConstants.ROLE_ADMIN,
-                        JwtConstants.ROLE_CUSTOMER,
-                        JwtConstants.ROLE_SUPPORT)
+        if (!List.of(JwtConstants.ROLE_ADMIN, JwtConstants.ROLE_CUSTOMER, JwtConstants.ROLE_SUPPORT)
                 .contains(normalizedRole)) {
             throw new IllegalArgumentException("Invalid role. Allowed: ADMIN, CUSTOMER, SUPPORT");
         }

@@ -18,3 +18,8 @@ eureka:
 auth:
   bootstrap:
     enabled: false
+internal:
+  jwt:
+    secret: test-internal-secret-that-is-long-enough-0123456789
+jwt:
+  secret: test-jwt-secret-that-is-long-enough-for-hs256-0123456789

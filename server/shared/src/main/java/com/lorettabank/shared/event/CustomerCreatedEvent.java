@@ -14,6 +14,7 @@ import lombok.experimental.SuperBuilder;
 public class CustomerCreatedEvent extends DomainEvent {
 
     private Long customerId;
+    private Long userId;
     private String email;
     private String firstName;
     private String lastName;

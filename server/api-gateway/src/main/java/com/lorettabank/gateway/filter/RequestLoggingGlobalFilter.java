@@ -37,13 +37,11 @@ public class RequestLoggingGlobalFilter implements GlobalFilter, Ordered {
                                     long duration = System.currentTimeMillis() - startTime;
                                     int statusCode =
                                             exchange.getResponse().getStatusCode() != null
-                                                    ? exchange.getResponse()
-                                                            .getStatusCode()
-                                                            .value()
+                                                    ? exchange.getResponse().getStatusCode().value()
                                                     : 0;
                                     log.info(
                                             "Completed request: method={}, path={},"
-                                                + " correlationId={}, status={}, duration={}ms",
+                                                    + " correlationId={}, status={}, duration={}ms",
                                             method,
                                             path,
                                             correlationId,

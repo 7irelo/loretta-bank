@@ -1,6 +1,7 @@
 package com.lorettabank.auth.config;
 
 import com.lorettabank.shared.security.GatewayAuthFilter;
+import com.lorettabank.shared.security.InternalTokenService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -16,10 +17,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class AuthSecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http, InternalTokenService internalTokenService) throws Exception {
         http.csrf(c -> c.disable())
-                .sessionManagement(
-                        s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(
                         auth ->
                                 auth.requestMatchers(
@@ -28,20 +29,20 @@ public class AuthSecurityConfig {
                                                 "/api/v1/auth/refresh")
                                         .permitAll()
                                         .requestMatchers(
-                                                "/actuator/**",
+                                                "/actuator/health/**",
+                                                "/actuator/info",
+                                                "/actuator/prometheus",
                                                 "/v3/api-docs/**",
-                                                "/api/**/v3/api-docs/**",
+                                                "/api/v1/auth/v3/api-docs/**",
                                                 "/swagger-ui/**",
-                                                "/api/**/swagger-ui/**",
-                                                "/swagger-ui.html",
-                                                "/api/**/swagger-ui.html")
+                                                "/swagger-ui.html")
                                         .permitAll()
                                         .requestMatchers("/api/v1/auth/users/**")
                                         .hasRole("ADMIN")
                                         .anyRequest()
                                         .authenticated())
                 .addFilterBefore(
-                        new GatewayAuthFilter(),
+                        new GatewayAuthFilter(internalTokenService),
                         UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

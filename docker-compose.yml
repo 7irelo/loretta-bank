@@ -1,4 +1,4 @@
-﻿services:
+services:
   # --- Infrastructure ---
 
   postgres:
@@ -6,10 +6,10 @@
     container_name: loretta-postgres
     environment:
       POSTGRES_USER: loretta
-      POSTGRES_PASSWORD: loretta_secret
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/dev-secrets.sh}
       POSTGRES_DB: loretta_auth
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
@@ -37,7 +37,7 @@
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
-      - "9092:9092"
+      - "127.0.0.1:9092:9092"
     healthcheck:
       test:
         [
@@ -52,10 +52,13 @@
   redis:
     image: redis:7.4-alpine
     container_name: loretta-redis
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?run scripts/dev-secrets.sh}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -68,7 +71,7 @@
       dockerfile: discovery-service/Dockerfile
     container_name: loretta-discovery
     ports:
-      - "8761:8761"
+      - "127.0.0.1:8761:8761"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://eureka:eureka@localhost:8761/actuator/health"]
       interval: 10s
@@ -81,11 +84,13 @@
       dockerfile: api-gateway/Dockerfile
     container_name: loretta-gateway
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
+      INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:?run scripts/dev-secrets.sh}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       REDIS_HOST: redis
-      JWT_SECRET: loretta-bank-jwt-secret-key-that-is-at-least-256-bits-long-for-hs256
+      JWT_SECRET: ${JWT_SECRET:?run scripts/dev-secrets.sh}
     depends_on:
       discovery-service:
         condition: service_healthy
@@ -99,15 +104,18 @@
       context: ./server
       dockerfile: auth-service/Dockerfile
     container_name: loretta-auth
-    ports:
-      - "8081:8081"
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/loretta_auth
       DB_USERNAME: loretta
-      DB_PASSWORD: loretta_secret
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/dev-secrets.sh}
       REDIS_HOST: redis
       EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
-      JWT_SECRET: loretta-bank-jwt-secret-key-that-is-at-least-256-bits-long-for-hs256
+      INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:?run scripts/dev-secrets.sh}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?run scripts/dev-secrets.sh}
+      AUTH_BOOTSTRAP_ENABLED: "true"
+      AUTH_BOOTSTRAP_ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@lorettabank.co.za}
+      AUTH_BOOTSTRAP_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?run scripts/dev-secrets.sh}
     depends_on:
       postgres:
         condition: service_healthy
@@ -127,15 +135,15 @@
       context: ./server
       dockerfile: customer-service/Dockerfile
     container_name: loretta-customer
-    ports:
-      - "8082:8082"
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/loretta_customer
       DB_USERNAME: loretta
-      DB_PASSWORD: loretta_secret
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/dev-secrets.sh}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
+      INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:?run scripts/dev-secrets.sh}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       CUSTOMER_SERVICE_URL: http://customer-service:8082
     depends_on:
       postgres:
@@ -152,15 +160,15 @@
       context: ./server
       dockerfile: account-service/Dockerfile
     container_name: loretta-account
-    ports:
-      - "8083:8083"
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/loretta_account
       DB_USERNAME: loretta
-      DB_PASSWORD: loretta_secret
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/dev-secrets.sh}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
+      INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:?run scripts/dev-secrets.sh}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       CUSTOMER_SERVICE_URL: http://customer-service:8082
     depends_on:
       postgres:
@@ -177,14 +185,14 @@
       context: ./server
       dockerfile: transaction-service/Dockerfile
     container_name: loretta-transaction
-    ports:
-      - "8084:8084"
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/loretta_transaction
       DB_USERNAME: loretta
-      DB_PASSWORD: loretta_secret
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/dev-secrets.sh}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
+      INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:?run scripts/dev-secrets.sh}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       ACCOUNT_SERVICE_URL: http://account-service:8083
       CUSTOMER_SERVICE_URL: http://customer-service:8082
     depends_on:
@@ -202,14 +210,14 @@
       context: ./server
       dockerfile: notification-service/Dockerfile
     container_name: loretta-notification
-    ports:
-      - "8085:8085"
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/loretta_notification
       DB_USERNAME: loretta
-      DB_PASSWORD: loretta_secret
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/dev-secrets.sh}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
+      INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:?run scripts/dev-secrets.sh}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
@@ -223,14 +231,14 @@
       context: ./server
       dockerfile: audit-service/Dockerfile
     container_name: loretta-audit
-    ports:
-      - "8086:8086"
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/loretta_audit
       DB_USERNAME: loretta
-      DB_PASSWORD: loretta_secret
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/dev-secrets.sh}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
+      INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:?run scripts/dev-secrets.sh}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
@@ -244,14 +252,14 @@
       context: ./server
       dockerfile: reporting-service/Dockerfile
     container_name: loretta-reporting
-    ports:
-      - "8087:8087"
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/loretta_reporting
       DB_USERNAME: loretta
-      DB_PASSWORD: loretta_secret
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/dev-secrets.sh}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       EUREKA_URL: http://eureka:eureka@discovery-service:8761/eureka/
+      INTERNAL_JWT_SECRET: ${INTERNAL_JWT_SECRET:?run scripts/dev-secrets.sh}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       ACCOUNT_SERVICE_URL: http://account-service:8083
       TRANSACTION_SERVICE_URL: http://transaction-service:8084
       CUSTOMER_SERVICE_URL: http://customer-service:8082

@@ -8,3 +8,6 @@ spring:
 eureka:
   client:
     enabled: false
+internal:
+  jwt:
+    secret: test-internal-secret-that-is-long-enough-0123456789

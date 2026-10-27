@@ -20,3 +20,6 @@ account-service:
 
 customer-service:
   url: http://localhost:8082
+internal:
+  jwt:
+    secret: test-internal-secret-that-is-long-enough-0123456789

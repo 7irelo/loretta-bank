@@ -21,12 +21,17 @@ public class AdminBootstrapConfig {
 
     @Bean
     public ApplicationRunner bootstrapAdminUser(
-            @Value("${auth.bootstrap.enabled:true}") boolean enabled,
+            @Value("${auth.bootstrap.enabled:false}") boolean enabled,
             @Value("${auth.bootstrap.admin-email:admin@lorettabank.co.za}") String adminEmail,
-            @Value("${auth.bootstrap.admin-password:AdminPass123!}") String adminPassword) {
+            @Value("${auth.bootstrap.admin-password:}") String adminPassword) {
         return args -> {
             if (!enabled) {
                 return;
+            }
+            if (adminPassword == null || adminPassword.length() < 12) {
+                throw new IllegalStateException(
+                        "AUTH_BOOTSTRAP_ADMIN_PASSWORD must be set (12+ characters) when"
+                                + " admin bootstrap is enabled");
             }
 
             if (userRepository.existsByRole(JwtConstants.ROLE_ADMIN)) {

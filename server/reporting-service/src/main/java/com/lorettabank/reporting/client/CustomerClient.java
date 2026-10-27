@@ -20,7 +20,8 @@ public class CustomerClient {
     }
 
     public CustomerView getCurrentCustomer(Long userId, String rolesHeader) {
-        return customerServiceWebClient.get()
+        return customerServiceWebClient
+                .get()
                 .uri("/api/v1/customers/me")
                 .header(JwtConstants.HEADER_USER_ID, String.valueOf(userId))
                 .header(JwtConstants.HEADER_USER_ROLES, rolesHeader)

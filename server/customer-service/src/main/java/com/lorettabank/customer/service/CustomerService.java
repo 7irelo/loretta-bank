@@ -19,9 +19,9 @@ import com.lorettabank.shared.exception.ResourceNotFoundException;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -63,6 +63,7 @@ public class CustomerService {
         CustomerCreatedEvent event =
                 CustomerCreatedEvent.builder()
                         .customerId(saved.getId())
+                        .userId(saved.getUserId())
                         .email(saved.getEmail())
                         .firstName(saved.getFirstName())
                         .lastName(saved.getLastName())
@@ -170,8 +171,11 @@ public class CustomerService {
     }
 
     @Transactional(readOnly = true)
-    public PagedResponse<CustomerResponse> listCustomers(Pageable pageable) {
-        Page<CustomerEntity> page = customerRepository.findAll(pageable);
+    public PagedResponse<CustomerResponse> listCustomers(Pageable pageable, KycStatus kycStatus) {
+        Page<CustomerEntity> page =
+                kycStatus == null
+                        ? customerRepository.findAll(pageable)
+                        : customerRepository.findByKycStatus(kycStatus, pageable);
         return PagedResponse.<CustomerResponse>builder()
                 .content(page.getContent().stream().map(customerMapper::toResponse).toList())
                 .page(page.getNumber())
@@ -184,9 +188,7 @@ public class CustomerService {
 
     private void cacheCustomer(CustomerEntity entity, CustomerResponse response) {
         try {
-            redisTemplate
-                    .opsForValue()
-                    .set(CACHE_PREFIX + entity.getId(), response, CACHE_TTL);
+            redisTemplate.opsForValue().set(CACHE_PREFIX + entity.getId(), response, CACHE_TTL);
             redisTemplate
                     .opsForValue()
                     .set(CACHE_USER_PREFIX + entity.getUserId(), response, CACHE_TTL);
@@ -200,7 +202,10 @@ public class CustomerService {
             redisTemplate.delete(CACHE_PREFIX + entity.getId());
             redisTemplate.delete(CACHE_USER_PREFIX + entity.getUserId());
         } catch (Exception e) {
-            log.warn("Failed to invalidate cache for customer {}: {}", entity.getId(), e.getMessage());
+            log.warn(
+                    "Failed to invalidate cache for customer {}: {}",
+                    entity.getId(),
+                    e.getMessage());
         }
     }
 

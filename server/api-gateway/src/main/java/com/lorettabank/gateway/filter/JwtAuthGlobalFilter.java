@@ -5,7 +5,9 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import javax.crypto.SecretKey;
 import lombok.extern.slf4j.Slf4j;
@@ -32,16 +34,24 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
 
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String BLACKLIST_PREFIX = "token:blacklist:";
+    private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+    private static final String INTERNAL_AUDIENCE = "loretta-internal";
+    private static final Duration INTERNAL_TOKEN_TTL = Duration.ofSeconds(60);
+    private static final List<String> SPOOFABLE_HEADERS =
+            List.of("X-User-Id", "X-User-Email", "X-User-Roles", INTERNAL_TOKEN_HEADER);
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
     private final SecretKey signingKey;
+    private final SecretKey internalKey;
     private final List<PathPattern> openPaths;
 
     public JwtAuthGlobalFilter(
             @Value("${jwt.secret}") String secret,
+            @Value("${internal.jwt.secret}") String internalSecret,
             ReactiveRedisTemplate<String, String> redisTemplate) {
         this.redisTemplate = redisTemplate;
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.internalKey = Keys.hmacShaKeyFor(internalSecret.getBytes(StandardCharsets.UTF_8));
 
         PathPatternParser parser = new PathPatternParser();
         this.openPaths =
@@ -51,7 +61,7 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
                         parser.parse("/api/v1/auth/refresh"),
                         parser.parse("/api/v1/{service}/v3/api-docs"),
                         parser.parse("/api/v1/{service}/swagger-ui/**"),
-                        parser.parse("/actuator/**"),
+                        parser.parse("/actuator/health/**"),
                         parser.parse("/v3/api-docs/**"),
                         parser.parse("/swagger-ui/**"),
                         parser.parse("/swagger-ui.html"));
@@ -59,7 +69,13 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        ServerHttpRequest request = exchange.getRequest();
+        // Never let a client supply identity headers; only this filter may set them.
+        ServerHttpRequest request =
+                exchange.getRequest()
+                        .mutate()
+                        .headers(headers -> SPOOFABLE_HEADERS.forEach(headers::remove))
+                        .build();
+        exchange = exchange.mutate().request(request).build();
 
         if (isOpenPath(request)) {
             return chain.filter(exchange);
@@ -85,10 +101,16 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
             return onUnauthorized(exchange, "Invalid or expired token");
         }
 
+        if (!"access".equals(claims.get("type", String.class))) {
+            return onUnauthorized(exchange, "Access token required");
+        }
+
         String jti = claims.getId();
         if (jti == null) {
-            return continueWithHeaders(exchange, chain, claims);
+            return onUnauthorized(exchange, "Token has no identifier");
         }
+
+        ServerWebExchange current = exchange;
 
         return redisTemplate
                 .hasKey(BLACKLIST_PREFIX + jti)
@@ -96,16 +118,19 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
                         isBlacklisted -> {
                             if (Boolean.TRUE.equals(isBlacklisted)) {
                                 log.warn("Blocked blacklisted token with jti: {}", jti);
-                                return onUnauthorized(exchange, "Token has been revoked");
+                                return onUnauthorized(current, "Token has been revoked");
                             }
-                            return continueWithHeaders(exchange, chain, claims);
+                            return continueWithHeaders(current, chain, claims);
                         })
                 .onErrorResume(
                         e -> {
-                            log.warn(
-                                    "Redis unavailable for blacklist check, allowing request: {}",
-                                    e.getMessage());
-                            return continueWithHeaders(exchange, chain, claims);
+                            // Fail closed: without the revocation list we cannot tell whether
+                            // this token was logged out or reported stolen.
+                            log.error("Redis unavailable for revocation check: {}", e.getMessage());
+                            return onStatus(
+                                    current,
+                                    HttpStatus.SERVICE_UNAVAILABLE,
+                                    "Authentication temporarily unavailable");
                         });
     }
 
@@ -133,29 +158,46 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
                         .header("X-User-Id", userId)
                         .header("X-User-Email", email != null ? email : "")
                         .header("X-User-Roles", roleHeader)
+                        .header(INTERNAL_TOKEN_HEADER, mintInternalToken(userId, roles, email))
                         .build();
 
         return chain.filter(exchange.mutate().request(mutatedRequest).build());
     }
 
+    private String mintInternalToken(String userId, List<String> roles, String email) {
+        Date now = new Date();
+        return Jwts.builder()
+                .subject(userId)
+                .audience()
+                .add(INTERNAL_AUDIENCE)
+                .and()
+                .claim("roles", roles)
+                .claim("email", email != null ? email : "")
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + INTERNAL_TOKEN_TTL.toMillis()))
+                .signWith(internalKey)
+                .compact();
+    }
+
     private boolean isOpenPath(ServerHttpRequest request) {
         return openPaths.stream()
-                .anyMatch(
-                        pattern ->
-                                pattern.matches(
-                                        request.getPath().pathWithinApplication()));
+                .anyMatch(pattern -> pattern.matches(request.getPath().pathWithinApplication()));
     }
 
     private Mono<Void> onUnauthorized(ServerWebExchange exchange, String message) {
+        return onStatus(exchange, HttpStatus.UNAUTHORIZED, message);
+    }
+
+    private Mono<Void> onStatus(ServerWebExchange exchange, HttpStatus status, String message) {
         ServerHttpResponse response = exchange.getResponse();
-        response.setStatusCode(HttpStatus.UNAUTHORIZED);
+        response.setStatusCode(status);
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
 
         String body =
                 String.format(
-                        "{\"error\":\"Unauthorized\",\"message\":\"%s\",\"status\":401}", message);
-        DataBuffer buffer =
-                response.bufferFactory().wrap(body.getBytes(StandardCharsets.UTF_8));
+                        "{\"error\":\"%s\",\"message\":\"%s\",\"status\":%d}",
+                        status.getReasonPhrase(), message, status.value());
+        DataBuffer buffer = response.bufferFactory().wrap(body.getBytes(StandardCharsets.UTF_8));
         return response.writeWith(Mono.just(buffer));
     }
 

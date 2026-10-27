@@ -18,6 +18,8 @@ public class TransferInitiatedEvent extends DomainEvent {
     private String idempotencyKey;
     private Long sourceAccountId;
     private Long targetAccountId;
+    private Long sourceCustomerId;
+    private Long targetCustomerId;
     private BigDecimal amount;
     private String currency;
     private String description;

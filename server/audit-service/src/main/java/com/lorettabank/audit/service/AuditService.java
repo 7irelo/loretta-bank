@@ -29,7 +29,9 @@ public class AuditService {
     @Transactional
     public void recordEvent(DomainEvent event, String sourceTopic) {
         if (event.getEventId() == null) {
-            log.warn("Skipping audit record because eventId is missing for type {}", event.getEventType());
+            log.warn(
+                    "Skipping audit record because eventId is missing for type {}",
+                    event.getEventType());
             return;
         }
 
@@ -45,7 +47,10 @@ public class AuditService {
                         .aggregateType(resolveAggregateType(event.getEventType()))
                         .aggregateId(event.getAggregateId())
                         .correlationId(event.getCorrelationId())
-                        .occurredAt(event.getOccurredAt() != null ? event.getOccurredAt() : Instant.now())
+                        .occurredAt(
+                                event.getOccurredAt() != null
+                                        ? event.getOccurredAt()
+                                        : Instant.now())
                         .sourceTopic(sourceTopic)
                         .payload(serializeEvent(event))
                         .build();

@@ -16,7 +16,6 @@ public class NotificationResponse {
     private Long userId;
     private String type;
     private String channel;
-    private String recipient;
     private String subject;
     private String body;
     private String status;
@@ -24,4 +23,5 @@ public class NotificationResponse {
     private String eventId;
     private LocalDateTime createdAt;
     private LocalDateTime sentAt;
+    private LocalDateTime readAt;
 }

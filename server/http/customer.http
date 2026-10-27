@@ -9,7 +9,7 @@ Authorization: Bearer {{accessToken}}
   "lastName": "Doe",
   "email": "john@lorettabank.co.za",
   "phoneNumber": "+27821234567",
-  "idNumber": "9501015800089",
+  "idNumber": "9501015800087",
   "dateOfBirth": "1995-01-01",
   "address": "123 Main Street, Cape Town, 8001"
 }
