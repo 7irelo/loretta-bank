@@ -1,5 +1,8 @@
 name: CD
 
+# Push to main deploys every service to staging; a manual run picks the environment and a
+# comma-separated list of services. Deployment only runs once the repository variable
+# DEPLOY_ENABLED is "true" (set it after the AWS role and secrets below exist).
 on:
   push:
     branches: [main]
@@ -9,50 +12,13 @@ on:
         description: Target environment
         required: true
         type: choice
-        options:
-          - staging
-          - production
+        options: [staging, production]
         default: staging
-      deploy_discovery:
-        description: Deploy discovery-service
-        type: boolean
-        default: true
-      deploy_gateway:
-        description: Deploy api-gateway
-        type: boolean
-        default: true
-      deploy_auth:
-        description: Deploy auth-service
-        type: boolean
-        default: true
-      deploy_customer:
-        description: Deploy customer-service
-        type: boolean
-        default: true
-      deploy_account:
-        description: Deploy account-service
-        type: boolean
-        default: true
-      deploy_transaction:
-        description: Deploy transaction-service
-        type: boolean
-        default: true
-      deploy_notification:
-        description: Deploy notification-service
-        type: boolean
-        default: true
-      deploy_audit:
-        description: Deploy audit-service
-        type: boolean
-        default: true
-      deploy_reporting:
-        description: Deploy reporting-service
-        type: boolean
-        default: true
-      deploy_frontend:
-        description: Deploy frontend
-        type: boolean
-        default: true
+      services:
+        description: Comma-separated services to deploy, or "all"
+        required: true
+        type: string
+        default: all
 
 permissions:
   id-token: write
@@ -60,10 +26,13 @@ permissions:
 
 env:
   AWS_REGION: af-south-1
+  ALL_SERVICES: >-
+    discovery-service,api-gateway,auth-service,customer-service,account-service,
+    transaction-service,notification-service,audit-service,reporting-service,ai-service,frontend
 
 jobs:
-  # ── Determine what to build and where to deploy ──────────────
   prepare:
+    if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.config.outputs.environment }}
@@ -72,58 +41,51 @@ jobs:
     steps:
       - name: Resolve deployment config
         id: config
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_ENV: ${{ inputs.environment }}
+          INPUT_SERVICES: ${{ inputs.services }}
         run: |
-          # Default: push to main deploys all services to staging
-          if [ "${{ github.event_name }}" = "push" ]; then
-            ENV="staging"
-            SERVICES='["discovery-service","api-gateway","auth-service","customer-service","account-service","transaction-service","notification-service","audit-service","reporting-service","frontend"]'
+          ALL=$(echo "$ALL_SERVICES" | tr -d ' \n')
+          if [ "$EVENT" = "push" ]; then
+            ENV=staging; REQUESTED=all
           else
-            ENV="${{ inputs.environment }}"
-            SERVICES="[]"
-            [ "${{ inputs.deploy_discovery }}" = "true" ]     && SERVICES=$(echo "$SERVICES" | jq -c '. + ["discovery-service"]')
-            [ "${{ inputs.deploy_gateway }}" = "true" ]       && SERVICES=$(echo "$SERVICES" | jq -c '. + ["api-gateway"]')
-            [ "${{ inputs.deploy_auth }}" = "true" ]          && SERVICES=$(echo "$SERVICES" | jq -c '. + ["auth-service"]')
-            [ "${{ inputs.deploy_customer }}" = "true" ]      && SERVICES=$(echo "$SERVICES" | jq -c '. + ["customer-service"]')
-            [ "${{ inputs.deploy_account }}" = "true" ]       && SERVICES=$(echo "$SERVICES" | jq -c '. + ["account-service"]')
-            [ "${{ inputs.deploy_transaction }}" = "true" ]   && SERVICES=$(echo "$SERVICES" | jq -c '. + ["transaction-service"]')
-            [ "${{ inputs.deploy_notification }}" = "true" ]  && SERVICES=$(echo "$SERVICES" | jq -c '. + ["notification-service"]')
-            [ "${{ inputs.deploy_audit }}" = "true" ]         && SERVICES=$(echo "$SERVICES" | jq -c '. + ["audit-service"]')
-            [ "${{ inputs.deploy_reporting }}" = "true" ]     && SERVICES=$(echo "$SERVICES" | jq -c '. + ["reporting-service"]')
-            [ "${{ inputs.deploy_frontend }}" = "true" ]      && SERVICES=$(echo "$SERVICES" | jq -c '. + ["frontend"]')
+            ENV="$INPUT_ENV"; REQUESTED=$(echo "$INPUT_SERVICES" | tr -d ' ')
           fi
+          [ "$REQUESTED" = "all" ] && REQUESTED="$ALL"
+          # Reject anything not in the allowlist (inputs are user-controlled).
+          for svc in $(echo "$REQUESTED" | tr ',' ' '); do
+            echo ",$ALL," | grep -q ",$svc," || { echo "Unknown service: $svc"; exit 1; }
+          done
+          SERVICES=$(echo "$REQUESTED" | jq -R -c 'split(",") | map(select(length > 0))')
+          CLUSTER=loretta-bank-staging
+          [ "$ENV" = "production" ] && CLUSTER=loretta-bank-production
+          {
+            echo "environment=$ENV"
+            echo "eks_cluster=$CLUSTER"
+            echo "services=$SERVICES"
+          } >> "$GITHUB_OUTPUT"
 
-          if [ "$ENV" = "production" ]; then
-            CLUSTER="loretta-bank-production"
-          else
-            CLUSTER="loretta-bank-staging"
-          fi
-
-          echo "environment=$ENV" >> "$GITHUB_OUTPUT"
-          echo "eks_cluster=$CLUSTER" >> "$GITHUB_OUTPUT"
-          echo "services=$SERVICES" >> "$GITHUB_OUTPUT"
-
-  # ── Build and push selected service images to ECR ────────────
   build-push:
     needs: prepare
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        include:
-          - { service: discovery-service,     context: server, dockerfile: discovery-service/Dockerfile }
-          - { service: api-gateway,           context: server, dockerfile: api-gateway/Dockerfile }
-          - { service: auth-service,          context: server, dockerfile: auth-service/Dockerfile }
-          - { service: customer-service,      context: server, dockerfile: customer-service/Dockerfile }
-          - { service: account-service,       context: server, dockerfile: account-service/Dockerfile }
-          - { service: transaction-service,   context: server, dockerfile: transaction-service/Dockerfile }
-          - { service: notification-service,  context: server, dockerfile: notification-service/Dockerfile }
-          - { service: audit-service,         context: server, dockerfile: audit-service/Dockerfile }
-          - { service: reporting-service,     context: server, dockerfile: reporting-service/Dockerfile }
-          - { service: frontend,              context: client, dockerfile: Dockerfile }
-    # Only build services that are flagged for deployment
-    if: contains(needs.prepare.outputs.services, matrix.service)
+        service: ${{ fromJSON(needs.prepare.outputs.services) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve build context
+        id: ctx
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          case "$SERVICE" in
+            frontend)   echo "context=client" >> "$GITHUB_OUTPUT"; echo "dockerfile=client/Dockerfile" >> "$GITHUB_OUTPUT" ;;
+            ai-service) echo "context=ai" >> "$GITHUB_OUTPUT"; echo "dockerfile=ai/Dockerfile" >> "$GITHUB_OUTPUT" ;;
+            *)          echo "context=server" >> "$GITHUB_OUTPUT"; echo "dockerfile=server/$SERVICE/Dockerfile" >> "$GITHUB_OUTPUT" ;;
+          esac
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -141,16 +103,16 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: ./${{ matrix.service.context }}
-          file: ./${{ matrix.service.context }}/${{ matrix.service.dockerfile }}
+          context: ./${{ steps.ctx.outputs.context }}
+          file: ./${{ steps.ctx.outputs.dockerfile }}
           push: true
+          provenance: true
+          sbom: true
           tags: |
-            ${{ steps.ecr.outputs.registry }}/loretta-bank/${{ matrix.service.service }}:${{ github.sha }}
-            ${{ steps.ecr.outputs.registry }}/loretta-bank/${{ matrix.service.service }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ steps.ecr.outputs.registry }}/loretta-bank/${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
-  # ── Deploy to EKS via Helm ──────────────────────────────────
   deploy:
     needs: [prepare, build-push]
     runs-on: ubuntu-latest
@@ -178,23 +140,29 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@v4
 
-      - name: Build Helm set flags for selected services
-        id: flags
-        run: |
-          SERVICES='${{ needs.prepare.outputs.services }}'
-          FLAGS=""
-
-          for svc in $(echo "$SERVICES" | jq -r '.[]'); do
-            FLAGS="$FLAGS --set ${svc}.image.tag=${{ github.sha }}"
-          done
-
-          echo "set_flags=$FLAGS" >> "$GITHUB_OUTPUT"
-
       - name: Deploy with Helm
+        env:
+          SERVICES: ${{ needs.prepare.outputs.services }}
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          INTERNAL_JWT_SECRET: ${{ secrets.INTERNAL_JWT_SECRET }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
+          ARGS=()
+          for svc in $(echo "$SERVICES" | jq -r '.[]'); do
+            ARGS+=(--set "${svc}.image.tag=${GITHUB_SHA}")
+          done
+          if [ "$ENVIRONMENT" = "production" ]; then
+            # Production reads secrets from AWS Secrets Manager via ExternalSecrets.
+            ARGS+=(--values helm/loretta-bank/values-production.yaml)
+          else
+            ARGS+=(--set-string "global.jwt.secret=${JWT_SECRET}"
+                   --set-string "global.internalJwt.secret=${INTERNAL_JWT_SECRET}"
+                   --set-string "global.postgres.password=${POSTGRES_PASSWORD}")
+          fi
           helm upgrade --install loretta-bank ./helm/loretta-bank \
             --namespace loretta-bank --create-namespace \
-            --values helm/loretta-bank/values-production.yaml \
-            --set global.imageRegistry=${{ steps.ecr.outputs.registry }} \
-            ${{ steps.flags.outputs.set_flags }} \
+            --set "global.imageRegistry=${REGISTRY}" \
+            "${ARGS[@]}" \
             --wait --timeout 10m
