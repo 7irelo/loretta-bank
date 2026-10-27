@@ -90,8 +90,8 @@ export function clearSessionCookies(response: NextResponse): void {
   }
 }
 
-export function readUser(): PublicUser | null {
-  const raw = cookies().get(USER_COOKIE)?.value;
+export async function readUser(): Promise<PublicUser | null> {
+  const raw = (await cookies()).get(USER_COOKIE)?.value;
   if (!raw) {
     return null;
   }
@@ -118,8 +118,8 @@ export function issueStepUp(response: NextResponse, userId: string): void {
   });
 }
 
-export function hasValidStepUp(userId: string | undefined): boolean {
-  const raw = cookies().get(STEP_UP_COOKIE)?.value;
+export async function hasValidStepUp(userId: string | undefined): Promise<boolean> {
+  const raw = (await cookies()).get(STEP_UP_COOKIE)?.value;
   if (!raw || !userId) {
     return false;
   }

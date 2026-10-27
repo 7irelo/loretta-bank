@@ -19,33 +19,38 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.80.6",
-    "axios": "^1.8.4",
+    "axios": "^1.21.0",
     "clsx": "^2.1.1",
-    "js-cookie": "^3.0.5",
+    "js-cookie": "^3.0.8",
     "lucide-react": "^0.477.0",
-    "next": "^14.2.25",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "next": "^15.5.28",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "react-hot-toast": "^2.5.2",
     "server-only": "^0.0.1",
     "tailwind-merge": "^3.3.0",
-    "zod": "^3.24.2",
+    "zod": "^4.6.7",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@types/js-cookie": "^3.0.6",
     "@types/node": "^22.13.9",
-    "@types/react": "^18.3.20",
-    "@types/react-dom": "^18.3.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.20",
     "cross-env": "^7.0.3",
     "eslint": "^8.57.1",
-    "eslint-config-next": "^14.2.25",
+    "eslint-config-next": "^15.5.28",
     "eslint-config-prettier": "^10.1.1",
-    "postcss": "^8.5.3",
+    "postcss": "^8.5.32",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.2"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.18"
+    }
   }
 }

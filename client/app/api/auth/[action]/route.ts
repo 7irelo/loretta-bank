@@ -50,7 +50,8 @@ async function passthroughError(response: Response) {
   );
 }
 
-export async function POST(request: Request, { params }: { params: { action: string } }) {
+export async function POST(request: Request, context: { params: Promise<{ action: string }> }) {
+  const params = await context.params;
   if (!isSameOriginMutation(request)) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }
@@ -93,7 +94,7 @@ export async function POST(request: Request, { params }: { params: { action: str
       return response;
     }
     case "logout": {
-      const store = cookies();
+      const store = await cookies();
       const access = store.get(ACCESS_COOKIE)?.value;
       const refresh = store.get(REFRESH_COOKIE)?.value;
       if (access && refresh) {
@@ -105,7 +106,7 @@ export async function POST(request: Request, { params }: { params: { action: str
       return response;
     }
     case "step-up": {
-      const user = readUser();
+      const user = await readUser();
       const parsed = stepUpSchema.safeParse(json);
       if (!user || !parsed.success) {
         return NextResponse.json({ message: "Enter your password" }, { status: 400 });

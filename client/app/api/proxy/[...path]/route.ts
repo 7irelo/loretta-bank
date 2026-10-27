@@ -68,7 +68,8 @@ async function forward(request: Request, path: string, accessToken: string, body
   });
 }
 
-async function handle(request: Request, { params }: { params: { path: string[] } }) {
+async function handle(request: Request, context: { params: Promise<{ path: string[] }> }) {
+  const params = await context.params;
   const path = params.path.join("/");
   if (!allowed(path)) {
     return NextResponse.json({ message: "Not found" }, { status: 404 });
@@ -82,14 +83,14 @@ async function handle(request: Request, { params }: { params: { path: string[] }
   }
 
   const body = ["GET", "HEAD"].includes(request.method) ? undefined : await request.arrayBuffer();
-  if (needsStepUp(request.method, path, body) && !hasValidStepUp(readUser()?.id)) {
+  if (needsStepUp(request.method, path, body) && !(await hasValidStepUp((await readUser())?.id))) {
     return NextResponse.json(
       { message: "Confirm your password to pay a new account", code: "STEP_UP_REQUIRED" },
       { status: 428 }
     );
   }
 
-  const store = cookies();
+  const store = await cookies();
   let accessToken = store.get(ACCESS_COOKIE)?.value;
   let refreshed: Awaited<ReturnType<typeof refreshTokens>> = null;
 
@@ -121,7 +122,7 @@ async function handle(request: Request, { params }: { params: { path: string[] }
     }
   });
   if (refreshed) {
-    setSessionCookies(response, refreshed, readUser()?.fullName);
+    setSessionCookies(response, refreshed, (await readUser())?.fullName);
   }
   if (upstream.status === 401) {
     clearSessionCookies(response);
